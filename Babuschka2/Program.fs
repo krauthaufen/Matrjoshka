@@ -466,6 +466,11 @@ type Client(chain : list<string * int * RSAPublicKey>) =
 
 [<EntryPoint>]
 let main args =
+    Babuschka.Test.run()
+
+    Babuschka3.Test.run()
+    System.Environment.Exit(0)
+
     let s0 = Router("s0", 11111)
     s0.Start()
 
