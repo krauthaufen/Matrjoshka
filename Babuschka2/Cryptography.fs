@@ -13,23 +13,26 @@ open System.Security.Cryptography
 open System.Net.Security
 open Nessos.FsPickler
 open Nessos.FsPickler.Combinators
+open Mono.Security.Cryptography
 
 type DiffieHellmanPublicKey = byte[]
 type RsaPublicKey = byte[]
 
-type DiffieHellman = private { dh : ECDiffieHellmanCng }
+type DiffieHellman = private { dh : Mono.Security.Cryptography.DiffieHellman }
 
 [<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
 module DiffieHellman =
     let create() =
-        { dh = new ECDiffieHellmanCng() }
+        let dh = new Mono.Security.Cryptography.DiffieHellmanManaged(1024,140, DHKeyGeneration.Random)
+
+        { dh = dh }
 
     let publicKey (dh : DiffieHellman) =
-        dh.dh.PublicKey.ToByteArray()
+        dh.dh.CreateKeyExchange()
 
     let deriveKey (dh : DiffieHellman) (publicKey : byte[]) =
-        let key = ECDiffieHellmanCngPublicKey.FromByteArray(publicKey, CngKeyBlobFormat.GenericPublicBlob)
-        dh.dh.DeriveKeyMaterial(key)
+        dh.dh.DecryptKeyExchange publicKey
+
 
     let destroy (dh : DiffieHellman) =
         dh.dh.Dispose()
@@ -40,18 +43,19 @@ type Rsa = private { rsa : RSACryptoServiceProvider; canEncrypt : bool; canDecry
 [<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
 module Rsa =
     let create() =
-        { rsa = new RSACryptoServiceProvider(2048); canEncrypt = true; canDecrypt = true }
+        { rsa = new RSACryptoServiceProvider(1024); canEncrypt = true; canDecrypt = true }
 
     let destroy (rsa : Rsa) =
         rsa.rsa.Dispose()
 
     let publicKey (rsa : Rsa) =
         let p = rsa.rsa.ExportParameters(false)
+        printfn "%A" p.Exponent.Length
         Array.concat [p.Exponent;p.Modulus]
 
     let fromPublicKey (key : byte[]) =
-        let exp = Array.sub key 0 3
-        let modulus = Array.sub key 3 (key.Length - 3)
+        let exp = Array.sub key 0 1
+        let modulus = Array.sub key 1 (key.Length - 1)
 
         let p = RSAParameters(Exponent = exp, Modulus = modulus)
         let rsa = new RSACryptoServiceProvider(2048)
@@ -60,28 +64,56 @@ module Rsa =
 
     let encrypt (rsa : Rsa) (data : byte[]) =
         if rsa.canEncrypt then
-            rsa.rsa.Encrypt(data, true)
+            let maxSize = 100
+
+            if data.Length > maxSize then
+                [0..maxSize..data.Length-1] |> List.map (fun start -> 
+                    let size = 
+                        if start + maxSize > data.Length then data.Length - start
+                        else maxSize
+                    printfn "enc: %A" size
+                    let res = rsa.rsa.Encrypt(Array.sub data start size, false)
+
+                    res
+                ) |> Array.concat
+            else
+                rsa.rsa.Encrypt(data, false)
         else
             failwith "cannot encrypt since Rsa does not posess the public key"
 
     let decrypt (rsa : Rsa) (data : byte[]) =
         if rsa.canDecrypt then
-            rsa.rsa.Decrypt(data, true)
+            let maxSize = 128
+
+            if data.Length > maxSize then
+                [0..maxSize..data.Length-1] |> List.map (fun start -> 
+                    let size = 
+                        if start + maxSize > data.Length then data.Length - start
+                        else maxSize
+
+                    let dec = rsa.rsa.Decrypt(Array.sub data start size, false)
+                    printfn "dec: %A" dec.Length
+                    dec
+                ) |> Array.concat
+            else
+                rsa.rsa.Decrypt(data, false)
         else
             failwith "cannot decrypt since Rsa does not posess the private key"
 
-type Aes = private { aes : AesCryptoServiceProvider }
+type Aes = private { aes : AesManaged }
 
 [<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
 module Aes =
     let createNew (key : byte[]) =
-        let aes = new AesCryptoServiceProvider()
+        let aes = new AesManaged()
+        printfn "aes: %A" (aes.LegalKeySizes |> Array.map (fun k -> k.MinSize, k.MaxSize))
+        printfn "key: %A" key.Length
         aes.Key <- key
         aes.GenerateIV()
         { aes = aes }
 
     let create (key : byte[]) (iv : byte[]) =
-        let aes = new AesCryptoServiceProvider()
+        let aes = new AesManaged()
         aes.Key <- key
         aes.IV <- iv
         { aes = aes }

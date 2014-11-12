@@ -21,6 +21,7 @@ type Message =
     | Connect of byte[]
     | Forward of string * int * byte[]
     | Command of string * obj
+    | Request of string * int * byte[]
 
 type Response =
     | Accept of DiffieHellmanPublicKey * byte[] * byte[]
@@ -75,14 +76,23 @@ type PlainClient() =
                 // read a base64 string from the input
                 let! line = Async.AwaitTask <| reader.ReadLineAsync()
 
-                // convert it to a byte[]
-                let arr = Convert.FromBase64String(line)
-
-                // deserialize the data (if not wanting a byte[])
-                if typeof<'a> = typeof<byte[]> then
-                    return arr :> obj |> unbox
+                if line = null then
+                    if typeof<'a> = typeof<Response> then
+                        return Exception "remote closed the connection" :> obj |> unbox
+                    elif typeof<'a> = typeof<byte[]> then
+                        let arr = pickler.Pickle (Exception "remote closed the connection")
+                        return arr :> obj |> unbox
+                    else
+                        return failwith "remote closed the connection"
                 else
-                    return pickler.UnPickle arr
+                    // convert it to a byte[]
+                    let arr = Convert.FromBase64String(line)
+
+                    // deserialize the data (if not wanting a byte[])
+                    if typeof<'a> = typeof<byte[]> then
+                        return arr :> obj |> unbox
+                    else
+                        return pickler.UnPickle arr
             }
         else
             failwith "client disconnected"
@@ -437,8 +447,21 @@ type RelayInstance(token : CancellationToken, name : string, client : TcpClient,
                             let client = forward target port
                             client.Send(data)
 
+                        | Request(target, port, data) ->
+                            use client = new TcpClient(target, port, NoDelay = true)
+                            use stream = client.GetStream()
+                            stream.Write(data, 0, data.Length)
+
+                            let buffer = Array.zeroCreate (1 <<< 16)
+                            let read = stream.Read(buffer, 0, buffer.Length)
+                            let result = Array.sub buffer 0 read
+
+                            send (Data result)
+
+
                         | Command(cmd, obj) ->
                             Log.info "got command: %s(%A)" cmd obj
+                            
 
                     ()
             with 
@@ -712,6 +735,7 @@ type Originator(directory : string, port : int) =
             | [(remote,port,key)] ->
                 let plain = PlainClient()
                 plain.Connect(remote, port)
+                Thread.Sleep(1000)
 
                 let sec = SecureClient(plain)
                 match sec.Connect key with
@@ -796,14 +820,36 @@ type Originator(directory : string, port : int) =
 
 
 module Test =
+
+    let get() =
+        use client = new TcpClient("www.google.de", 80, NoDelay = true)
+        use stream = client.GetStream()
+        let data = System.Text.ASCIIEncoding.ASCII.GetBytes("""GET http://www.google.de/index.html HTTP/1.0
+Cache-Control: max-age=0
+Connection: keep-alive
+Accept: text/html,application/xhtml+xml,application/xml
+        """)
+        stream.Write(data, 0, data.Length)
+
+        let buffer = Array.zeroCreate (1024)
+        let read = stream.Read(buffer, 0, buffer.Length)
+        let result = Array.sub buffer 0 read
+
+        let res = System.Text.ASCIIEncoding.Default.GetString result
+        printfn "%A" res
+
+
     let run() =
+//        get()
+//        Environment.Exit(0)
+
         // create and start a directory node
         let dir = Directory(12345, 54321)
         dir.Start()
 
         // build some relays
         let relays = 
-            List.init 10 (fun i ->
+            List.init 3 (fun i ->
                 let ri = Relay("localhost", 54321, sprintf "r%d" i, 10000 + i)
                 ri.Start()
                 ri
@@ -816,11 +862,24 @@ module Test =
         // let's create an originator
         let o = Originator("localhost", 12345)
 
+        Console.WriteLine "press enter to continue"
+        Console.ReadLine() |> ignore
+
+        Console.WriteLine "cont"
+
         // we'd like to have a chain of length 6 here
-        o.Connect 6 |> ignore
+        o.Connect 3 |> ignore
 
         // send a command (currently only printed in the exit-node)
         o.Send(Command("somecommand", "content"))
+
+        //relays |> List.iter (fun r -> r.Stop())
+
+        Console.WriteLine "sadasdasdasd"
+        Console.ReadLine() |> ignore
+
+        let data = System.Text.ASCIIEncoding.Default.GetBytes("GET / HTTP/1.0")
+        let data : Response = o.Request(Request("www.orf.at", 80, data)) |> Async.RunSynchronously
 
         // wait for user input
         Console.WriteLine "press enter to destroy the Originator"
@@ -833,6 +892,7 @@ module Test =
 
         // we'd like to have a chain of length 3 this time
         let o = Originator("localhost", 12345)
+        
         o.Connect 3 |> ignore
 
         // send a command (currently only printed in the exit-node)
