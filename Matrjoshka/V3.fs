@@ -449,13 +449,13 @@ type RelayInstance(token : CancellationToken, name : string, client : TcpClient,
                             client.Send(data)
 
                         | Request(target, port, data) ->
-                            use client = new TcpClient(target, port, NoDelay = true)
-                            use stream = client.GetStream()
-                            stream.Write(data, 0, data.Length)
+                            let req = System.Net.HttpWebRequest.Create(target)
 
-                            let buffer = Array.zeroCreate (1 <<< 16)
-                            let read = stream.Read(buffer, 0, buffer.Length)
-                            let result = Array.sub buffer 0 read
+                            use reader = new StreamReader(req.GetRequestStream())
+
+                            let response = reader.ReadToEnd()
+                            
+                            let result = System.Text.ASCIIEncoding.UTF8.GetBytes(response)
 
                             send (Data result)
 

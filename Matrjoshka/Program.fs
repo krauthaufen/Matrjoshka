@@ -115,8 +115,18 @@ let main args =
                     | "!connect" ->
                         printfn "%A" <| c.Connect(3)
 
-                    | "!ping" ->
-                        c.Send(Command("somecommand", "content"))
+                    | "!google" ->
+                        c.Send(Request("http://www.google.de", 0, null))
+
+                        let data = c.Receive() |> Async.RunSynchronously
+
+                        match data with
+                            | Data content ->
+                                printfn "got:\r\n\r\n%s" (System.Text.ASCIIEncoding.UTF8.GetString content)
+                            | _ ->
+                                ()
+
+                    
                          
                     | _ -> () 
 
