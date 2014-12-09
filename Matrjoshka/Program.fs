@@ -13,7 +13,7 @@ open Babuschka
 open Babuschka3
 
 let chainNodeCount = 3
-let chainNodeBasePort = 1234
+let chainNodeBasePort = 9985
 let directoryPingPort = 9980
 
 let usage() =

@@ -27,9 +27,9 @@ type ChainPool() =
 module EC2 =
 
     let Log = Logging.logger "EC2"
-    let private instanceId = "ami-c81ea2bf"
+    let private imageName = "G1-T3-Windows"
     let private startupScript (directoryIp : string) (port : int) =
-        let str = sprintf @"C:\Matrjoshka\Matrjoshka.exe chain %s %d" directoryIp port
+        let str = sprintf "<script>cmd /C \"C:\\Matrjoshka\\Matrjoshka.exe chain %s %d\"</script>" directoryIp port
 
         Log.info "startup script for chains: %A" str
         let bytes = System.Text.ASCIIEncoding.Default.GetBytes str
@@ -50,12 +50,13 @@ module EC2 =
 
     let private getMyOwnAddress () =
         try
-            let request = System.Net.HttpWebRequest.Create("instance-data/latest/meta-data/public-ipv4")
+            let request = System.Net.HttpWebRequest.Create("http://instance-data/latest/meta-data/public-ipv4")
             request.Timeout <- 1000
             let response = request.GetResponse()
             use reader = new System.IO.StreamReader(response.GetResponseStream())
             reader.ReadToEnd()
         with e ->
+            Log.warn "error %A" e
             System.Environment.MachineName
 
     let createChainPool (credentialsFile : string) (chainPort : int) (directoryPort : int) : Error<ChainPool> =
@@ -78,22 +79,24 @@ module EC2 =
 
                                         Log.info "localhost: %A" myself
 
-                                        let request = RunInstancesRequest(instanceId, count, count)
-//
-//                                        let myAddresses = System.Net.Dns.GetHostAddresses System.Environment.MachineName |> Seq.map (fun n -> string n) |> Seq.toList
-//                                        let ownAddress = myAddresses |> Seq.tryFind (fun a -> a.StartsWith "54")
-//
-//                                        let ownAddress =
-//                                            match ownAddress with
-//                                                | Some a -> a
-//                                                | None ->
-//                                                    
+
+                                        let getImageId = DescribeImagesRequest()
+                                        getImageId.Owners.Add "self"
+//                                        getImageId.ExecutableUsers.Add "self"
+
+
+                                        let images = client.DescribeImages(getImageId)
+
+                                        let image = images.Images |> Seq.find (fun i -> i.Name = "G1-T3-Windows")
+                                        let imageId = image.ImageId
+
+                                        let request = RunInstancesRequest(imageId, count, count)
 
                                         request.UserData <- startupScript myself chainPort
                                         request.InstanceType <- InstanceType.T2Micro
                                         request.SecurityGroups.Add "G1-T3-Windows"
                                         request.KeyName <- "G1-T3-Win"
-                              
+                                        
 
                                         // start instances
                                         Log.info "issuing request"
@@ -103,7 +106,7 @@ module EC2 =
 
                                         // create tags (Name) for instances
                                         Log.info "creating tags"
-                                        let tags = response.Reservation.Instances |> Seq.mapi(fun i instance -> Tag("Name", sprintf "G1-T3-Chain%d" i)) |> Seq.toList
+                                        let tags = response.Reservation.Instances |> Seq.map(fun instance -> Tag("Name", sprintf "G1-T3-Chain")) |> Seq.toList
                                         let ids = System.Collections.Generic.List(response.Reservation.Instances |> Seq.map (fun i -> i.InstanceId))
 
                                         let createTags = CreateTagsRequest(ids, System.Collections.Generic.List(tags))
@@ -138,17 +141,19 @@ module EC2 =
     
                                         let inst = DescribeInstancesRequest()
                                         inst.InstanceIds <- ids
-
+                         
                                         let! res = client.DescribeInstancesAsync(inst) |> Async.AwaitTask
 
-                                        let instances = res.Reservations |> Seq.toList |> List.mapi (fun i res -> i,res.Instances.[0])
+                                        let instances = res.Reservations|> Seq.collect (fun res -> res.Instances) |> Seq.toList
                                         Log.info "got %d instances" instances.Length
 
 
+
+
                                         let instances = 
-                                            [ for (id, instance) in instances do
+                                            [ for (instance) in instances do
                 
-                                                Log.info "instance %d ready: %A (%A)" id instance.PrivateIpAddress instance.PublicIpAddress
+                                                Log.info "instance %A ready: %A (%A)" instance.InstanceId instance.PrivateIpAddress instance.PublicIpAddress
 
 
                                                 // create a shutdown-function
