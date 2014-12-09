@@ -451,7 +451,8 @@ type RelayInstance(token : CancellationToken, name : string, client : TcpClient,
                         | Request(target, port, data) ->
                             let req = System.Net.HttpWebRequest.Create(target)
 
-                            use reader = new StreamReader(req.GetRequestStream())
+                            use response = req.GetResponse()
+                            use reader = new StreamReader(response.GetResponseStream())
 
                             let response = reader.ReadToEnd()
                             

@@ -116,7 +116,7 @@ let main args =
                         printfn "%A" <| c.Connect(3)
 
                     | "!google" ->
-                        c.Send(Request("http://www.google.de", 0, null))
+                        c.Send(Request("http://www.orf.at", 0, null))
 
                         let data = c.Receive() |> Async.RunSynchronously
 
