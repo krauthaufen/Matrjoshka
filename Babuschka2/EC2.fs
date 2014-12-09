@@ -19,27 +19,12 @@ type ChainNodeHandle = { address : string; port : int; shutdown : unit -> Async<
 type ChainPool() =
     abstract member Dispose : unit -> unit
     abstract member StartChainAsync : unit -> Async<ChainNodeHandle>
-    abstract member ChainNodes : list<ChainNodeHandle>
     
     interface IDisposable with
         member x.Dispose() = x.Dispose()
 
-    member x.Shutdown() =
-        async {
-            
-            let shutdownTasks = x.ChainNodes |> List.map (fun c -> c.shutdown())
-            
-            for task in shutdownTasks do
-                let! () = task
-                ()
-
-            x.Dispose()
-        }
-
 
 module EC2 =
-    let mutable private client : Option<AmazonEC2Client> = None
-
     type private Credentials = { accessKeyId : string; secretAccessKey : string }
 
     let private parseCredentialsFile(content : string) =
@@ -50,85 +35,80 @@ module EC2 =
         else
             Error "invalid credentials file-format"
 
-    let private connect(credentialsFile : string) =
+    let Log = Logging.logger "EC2"
+
+    let private instanceId = ""
+    let private startupScript (directoryIp : string) (port : int) =
+        sprintf @"C:\Matrjoshka\run.exe chain %s %d" directoryIp port
+
+    let createChainPool (credentialsFile : string) (chainPort : int) (directoryPort : int) : Error<ChainPool> =
         if not <| File.Exists credentialsFile then
-            Error (sprintf "could not find credential-file: %A" credentialsFile)
-        else
-            match parseCredentialsFile (File.ReadAllText credentialsFile) with
-                | Success cred ->
-                
-                    // dispose the old client (if any)
-                    match client with
-                        | Some c -> c.Dispose()
-                        | None -> ()
-
-                    let c = new AmazonEC2Client(cred.accessKeyId, cred.secretAccessKey, RegionEndpoint.EUWest1)
-                    client <- Some c
-
-                    Success c
-
-                | Error e ->
-                    Error e
-
-    let private disconnect() =
-        match client with
-            | Some c -> c.Dispose()
-            | None -> ()
-
-        client <- None
-
-
-    let private getClient() =
-        match client with
-            | Some c -> c
-            | None -> failwith "client was not connected"
-    
-
-    let startInstance() =
-        async {
-            let c = getClient()
-            
-            let runRequest = RunInstancesRequest("", 1, 1)
-
-            let response = c.DryRun(runRequest)
-            
-            printfn "%A" response
-            ()
-        }
-
-    let test() =
-        match connect "cred.txt" with
-            | Error e -> failwith e
-            | _ -> ()
-
-        startInstance() |> Async.RunSynchronously
-        
-
-        disconnect()
-        
-        printfn "done"
-
-
-    let createChainPool (credentialsFile : string) (directoryPort : int) : Error<ChainPool> =
-        if not <| File.Exists credentialsFile then
+            Log.error "could not find credentials-file"
             Error "credentials-file could not be found"
         else
             match parseCredentialsFile (File.ReadAllText credentialsFile) with
                 | Success cred ->
 
-                    let client = new AmazonEC2Client(cred.accessKeyId, cred.secretAccessKey, RegionEndpoint.EUWest1)
+                    try
+                        let client = new AmazonEC2Client(cred.accessKeyId, cred.secretAccessKey, RegionEndpoint.EUWest1)
+
+                        let pool = 
+                            { new ChainPool() with
+                                member x.StartChainAsync() =
+                                    async {
+
+                                        let request = RunInstancesRequest(instanceId, 1, 1)
+                                        request.UserData <- startupScript "my ip" chainPort
+
+                                        // spin until the request is successful
+                                        let! response = client.RunInstancesAsync(null) |> Async.AwaitTask
+                                        let response = ref response
+
+                                        while response.Value.HttpStatusCode <> Net.HttpStatusCode.OK do
+                                            Thread.Sleep 200
+                                            let! r = client.RunInstancesAsync(null) |> Async.AwaitTask
+                                            response := r
+                                        let response = !response
 
 
-                    let pool = 
-                        { new ChainPool() with
-                            member x.StartChainAsync() = failwith "not implemented"
-                            member x.ChainNodes = []
-                            member x.Dispose() = client.Dispose()
-                        }
+                                        // get the created instance (must only be one)
+                                        let instance = response.Reservation.Instances |> Seq.head
+                                                
+                                        // spin until the instance is "running"
+                                        while instance.State.Name <> InstanceStateName.Running do
+                                            Thread.Sleep(200)
 
-                    Success pool
+                                        // create a shutdown-function
+                                        let shutdown () =
+                                            async {
+                                                // issue the request
+                                                let r = StopInstancesRequest(System.Collections.Generic.List [])
+                                                let! res = client.StopInstancesAsync r |> Async.AwaitTask
+
+                                                // spin until the instance-state is "terminated"
+                                                let instance = res.StoppingInstances |> Seq.head
+                                                while instance.CurrentState.Name <> InstanceStateName.Terminated do
+                                                    Thread.Sleep 200
+
+                                                return ()
+                                            }
+
+                                        return { address = instance.SubnetId; port = chainPort; shutdown = shutdown }
+                      
+                                    }
+
+                                member x.Dispose() = 
+                                    client.Dispose()
+                            }
+
+                        Success pool
+
+                    with e ->
+                        Log.error "could not connect to EC2: %A" e
+                        Error (sprintf "%A" e)
 
                 | Error e ->
+                    Log.error "could not parse credentials-file"
                     Error e
 
 
@@ -161,7 +141,6 @@ module Sim =
                 }
 
             member x.Dispose() = ()        
-            member x.ChainNodes = []
         }
 
 

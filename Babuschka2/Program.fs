@@ -27,7 +27,7 @@ let usage() =
     printfn "        the directory waits for 'alive'-messages at %d" directoryPingPort
     printfn "        and accepts connections (from clients) at tcp-port"
     printfn ""
-    printfn "    chain <directory-ip> <udp-port> <tcp-port>"
+    printfn "    chain <directory-ip> <tcp-port>"
     printfn "        the chain node sends alive-messages to the directory"
     printfn "        and accepts client-connections at tcp-port" 
 
