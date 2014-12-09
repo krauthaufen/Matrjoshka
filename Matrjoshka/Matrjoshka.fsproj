@@ -25,7 +25,7 @@
     <DocumentationFile>bin\Debug\Babuschka2.XML</DocumentationFile>
     <Prefer32Bit>true</Prefer32Bit>
     <UseVSHostingProcess>true</UseVSHostingProcess>
-    <StartArguments>client 54.154.69.11 9999</StartArguments>
+    <StartArguments>client 54.72.135.139 9999</StartArguments>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <DebugType>pdbonly</DebugType>

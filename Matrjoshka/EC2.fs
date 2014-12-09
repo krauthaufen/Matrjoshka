@@ -93,7 +93,7 @@ module EC2 =
                                         let request = RunInstancesRequest(imageId, count, count)
 
                                         request.UserData <- startupScript myself chainPort
-                                        request.InstanceType <- InstanceType.T2Micro
+                                        request.InstanceType <- InstanceType.T2Small
                                         request.SecurityGroups.Add "G1-T3-Windows"
                                         request.KeyName <- "G1-T3-Win"
                                         

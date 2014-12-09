@@ -126,7 +126,16 @@ let main args =
                             | _ ->
                                 ()
 
-                    
+                    | "!qod" ->
+                        c.Send(Request("http://api.theysaidso.com/qod.json", 0, null))
+
+                        let data = c.Receive() |> Async.RunSynchronously
+
+                        match data with
+                            | Data content ->
+                                printfn "got:\r\n\r\n%s" (System.Text.ASCIIEncoding.UTF8.GetString content)
+                            | _ ->
+                                ()           
                          
                     | _ -> () 
 
