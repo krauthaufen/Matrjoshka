@@ -25,6 +25,7 @@
     <DocumentationFile>bin\Debug\Babuschka2.XML</DocumentationFile>
     <Prefer32Bit>true</Prefer32Bit>
     <UseVSHostingProcess>true</UseVSHostingProcess>
+    <StartArguments>client 127.0.0.1 12345</StartArguments>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <DebugType>pdbonly</DebugType>
@@ -57,11 +58,16 @@
     <Compile Include="Logging.fs" />
     <Compile Include="Cryptography.fs" />
     <Compile Include="V3.fs" />
+    <Compile Include="EC2.fs" />
     <Compile Include="Program.fs" />
     <Content Include="packages.config" />
     <Content Include="app.config" />
   </ItemGroup>
   <ItemGroup>
+    <Reference Include="AWSSDK">
+      <HintPath>..\packages\AWSSDK.2.3.12.0\lib\net45\AWSSDK.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
     <Reference Include="FsPickler">
       <HintPath>..\packages\FsPickler.1.0.3\lib\net45\FsPickler.dll</HintPath>
     </Reference>

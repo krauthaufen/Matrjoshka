@@ -10,6 +10,7 @@ open System.IO
 open System.Net.Sockets
 open System.Collections.Concurrent
 open System.Threading
+open System.Threading.Tasks
 open Nessos.FsPickler
 open Nessos.FsPickler.Combinators
 open Babuschka
@@ -557,6 +558,8 @@ type Relay(directory : string, dirPort : int, name : string, port : int) =
         Rsa.destroy rsa
         instances.Clear()
 
+
+
 type Directory(port : int, pingPort : int) =
     static let pickler = FsPickler.CreateBinary(true)
     let pingListener = new UdpClient(pingPort)
@@ -585,13 +588,23 @@ type Directory(port : int, pingPort : int) =
                             let id = (address, port)
                             //Log.info "got alive from: %s:%d" address port
 
-                            content.AddOrUpdate(id, (fun _ -> key, time), (fun _ _ -> key, time)) |> ignore
+
+                            let addFun (address, port) =
+                                Log.info "chain logged in: %s:%d" address port
+                                key, time
+
+                            let updateFun old (address, port) =
+                                key, time
+
+                            content.AddOrUpdate(id, addFun, updateFun) |> ignore
+
+                            
 
                         | Shutdown(address, port) ->
 
                             content.TryRemove((address, port)) |> ignore
                 with e ->
-                    Log.warn "received corrupt UDP-Packet"
+                    Log.warn "received corrupt UDP-Packet: %A" e
         }
 
     let getAllRelays() =
@@ -692,6 +705,19 @@ type Directory(port : int, pingPort : int) =
 
         }
     
+
+    member x.WaitForChainNodes (count : int) =
+        Log.info "waiting for %d chain nodes to come up" count
+        while content.Count < count do
+            Thread.Sleep(200)
+
+        Log.info "finished waiting for chain nodes"
+
+    member x.PrintChainNodes() =
+        for (KeyValue((address, port),(key, last))) in content do
+            Log.info "%s:%d (last alive: %A)" address port last
+        ()
+
     member x.Run() =
         startPingListener() |> start
         startListener() |> Async.RunSynchronously
@@ -699,6 +725,7 @@ type Directory(port : int, pingPort : int) =
     member x.Start() =
         startPingListener() |> start
         startListener() |> start
+
 
     member x.Stop() =
         cancel.Cancel()
