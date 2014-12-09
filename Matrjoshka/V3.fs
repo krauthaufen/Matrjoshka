@@ -560,7 +560,7 @@ type Relay(directory : string, dirPort : int, name : string, port : int) =
 
 
 
-type Directory(port : int, pingPort : int) =
+type Directory(port : int, pingPort : int, remapAddress : string -> string) =
     static let pickler = FsPickler.CreateBinary(true)
     let pingListener = new UdpClient(pingPort)
     let listener = new TcpListener(IPAddress.Any, port)
@@ -585,6 +585,7 @@ type Directory(port : int, pingPort : int) =
                     let ping = pickler.UnPickle(data.Buffer)
                     match ping with
                         | Alive(address, port, key) ->
+                            let address = remapAddress address
                             let id = (address, port)
                             //Log.info "got alive from: %s:%d" address port
 
@@ -871,7 +872,7 @@ Accept: text/html,application/xhtml+xml,application/xml
 //        Environment.Exit(0)
 
         // create and start a directory node
-        let dir = Directory(12345, 54321)
+        let dir = Directory(12345, 54321, id)
         dir.Start()
 
         // build some relays

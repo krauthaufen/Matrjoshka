@@ -65,7 +65,14 @@ let main args =
 
             let chainNodeHandles = pool.StartChainAsync chainNodeCount |> Async.RunSynchronously
 
-            let d = Babuschka3.Directory(port, directoryPingPort)
+            let mapping = chainNodeHandles |> List.map (fun h -> h.privateAddress, h.publicAddress) |> Map.ofList
+
+            let remapName (name : string) =
+                match Map.tryFind name mapping with
+                    | Some i -> i
+                    | None -> name
+
+            let d = Babuschka3.Directory(port, directoryPingPort, remapName)
             d.Start()
             
             d.WaitForChainNodes(chainNodeCount)

@@ -13,7 +13,7 @@ open Babuschka
 
 type Error<'a> = Success of 'a | Error of string
 
-type ChainNodeHandle = { address : string; port : int; shutdown : unit -> Async<unit> }
+type ChainNodeHandle = { privateAddress : string; publicAddress : string; port : int; shutdown : unit -> Async<unit> }
 
 [<AbstractClass>]
 type ChainPool() =
@@ -25,6 +25,18 @@ type ChainPool() =
 
 
 module EC2 =
+
+    let Log = Logging.logger "EC2"
+    let private instanceId = "ami-c81ea2bf"
+    let private startupScript (directoryIp : string) (port : int) =
+        let str = sprintf @"C:\Matrjoshka\Matrjoshka.exe chain %s %d" directoryIp port
+
+        Log.info "startup script for chains: %A" str
+        let bytes = System.Text.ASCIIEncoding.Default.GetBytes str
+
+        Convert.ToBase64String(bytes)
+
+
     type private Credentials = { accessKeyId : string; secretAccessKey : string }
 
     let private parseCredentialsFile(content : string) =
@@ -35,15 +47,16 @@ module EC2 =
         else
             Error "invalid credentials file-format"
 
-    let Log = Logging.logger "EC2"
 
-    let private instanceId = "ami-862a96f1"
-    let private startupScript (directoryIp : string) (port : int) =
-        let str = sprintf @"C:\Matrjoshka\run.exe chain %s %d" directoryIp port
-        let bytes = System.Text.ASCIIEncoding.Default.GetBytes str
-
-        Convert.ToBase64String(bytes)
-
+    let private getMyOwnAddress () =
+        try
+            let request = System.Net.HttpWebRequest.Create("instance-data/latest/meta-data/public-ipv4")
+            request.Timeout <- 1000
+            let response = request.GetResponse()
+            use reader = new System.IO.StreamReader(response.GetResponseStream())
+            reader.ReadToEnd()
+        with e ->
+            System.Environment.MachineName
 
     let createChainPool (credentialsFile : string) (chainPort : int) (directoryPort : int) : Error<ChainPool> =
         if not <| File.Exists credentialsFile then
@@ -53,6 +66,8 @@ module EC2 =
             match parseCredentialsFile (File.ReadAllText credentialsFile) with
                 | Success cred ->
 
+                    let myself = getMyOwnAddress()
+
                     try
                         let client = new AmazonEC2Client(cred.accessKeyId, cred.secretAccessKey, RegionEndpoint.EUWest1)
 
@@ -61,68 +76,94 @@ module EC2 =
                                 member x.StartChainAsync(count : int) =
                                     async {
 
-                                        Log.info "localhost: %A" (System.Net.Dns.GetHostEntry("localhost").AddressList)
+                                        Log.info "localhost: %A" myself
 
                                         let request = RunInstancesRequest(instanceId, count, count)
-                                        request.UserData <- startupScript "54.154.32.116" chainPort
+//
+//                                        let myAddresses = System.Net.Dns.GetHostAddresses System.Environment.MachineName |> Seq.map (fun n -> string n) |> Seq.toList
+//                                        let ownAddress = myAddresses |> Seq.tryFind (fun a -> a.StartsWith "54")
+//
+//                                        let ownAddress =
+//                                            match ownAddress with
+//                                                | Some a -> a
+//                                                | None ->
+//                                                    
+
+                                        request.UserData <- startupScript myself chainPort
                                         request.InstanceType <- InstanceType.T2Micro
                                         request.SecurityGroups.Add "G1-T3-Windows"
                                         request.KeyName <- "G1-T3-Win"
                               
-                                        Log.info "performing dry run"
-                                        let dry = client.DryRun(request)
-                                        if dry.IsSetError() then
-                                            Log.error "dry run failed: %A" dry.Error
-                                            failwith "%A" dry.Error
 
-
+                                        // start instances
                                         Log.info "issuing request"
-                                        // spin until the request is successful
                                         let! response = client.RunInstancesAsync(request) |> Async.AwaitTask
-                                        //let response = ref response
-                                        Log.info "got response: %A" response
-
-//
-//                                        while response.Value.HttpStatusCode <> Net.HttpStatusCode.OK do
-//                                            Thread.Sleep 200
-//                                            Log.info ""
-//                                            let! r = client.RunInstancesAsync(request) |> Async.AwaitTask
-//                                            response := r
-//                                        let response = !response
+                                        Log.info "got response´with status: %A" response.HttpStatusCode
 
 
-                                        let instances = response.Reservation.Instances |> Seq.toList |> List.mapi (fun i instance -> i,instance)
-                                        Log.info "got %d instance handles" instances.Length
+                                        // create tags (Name) for instances
+                                        Log.info "creating tags"
+                                        let tags = response.Reservation.Instances |> Seq.mapi(fun i instance -> Tag("Name", sprintf "G1-T3-Chain%d" i)) |> Seq.toList
+                                        let ids = System.Collections.Generic.List(response.Reservation.Instances |> Seq.map (fun i -> i.InstanceId))
+
+                                        let createTags = CreateTagsRequest(ids, System.Collections.Generic.List(tags))
+                                        let! res = client.CreateTagsAsync(createTags) |> Async.AwaitTask
+
+                                        if res.HttpStatusCode <> Net.HttpStatusCode.OK then
+                                            Log.warn "failed to create tags: %A" (res.ResponseMetadata.Metadata |> Seq.map (fun (KeyValue(k,v)) -> k,v) |> Seq.toList)
+
+                                        
+
+
+                                        // wait until all instances are ready
+                                        let ready = ref false
+                                        while not ready.Value do
+                                            Log.info "checking instance status"
+                                            let statusRequest = DescribeInstanceStatusRequest()
+                                            statusRequest.InstanceIds <- ids
+                                            statusRequest.IncludeAllInstances <- true
+
+                                            let status = client.DescribeInstanceStatus(statusRequest)
+                                            ready := status.InstanceStatuses |> Seq.forall(fun s -> s.InstanceState.Name = InstanceStateName.Running)
+                                            
+                                            if not ready.Value then
+                                                Thread.Sleep 1000
+
+                                        Log.info "all instances running"
+
+
+
+                                        // get updated instance descriptions (including public ips)
+                                        Log.info "getting updated instance descriptions"
+    
+                                        let inst = DescribeInstancesRequest()
+                                        inst.InstanceIds <- ids
+
+                                        let! res = client.DescribeInstancesAsync(inst) |> Async.AwaitTask
+
+                                        let instances = res.Reservations |> Seq.toList |> List.mapi (fun i res -> i,res.Instances.[0])
+                                        Log.info "got %d instances" instances.Length
+
 
                                         let instances = 
                                             [ for (id, instance) in instances do
+                
+                                                Log.info "instance %d ready: %A (%A)" id instance.PrivateIpAddress instance.PublicIpAddress
 
-                                                instance.Tags.Add(Tag("name", sprintf "G1-T3-Chain%d" id))
-                                                //Log.info "waiting for instance: %A" instance.PublicDnsName
-                                                // spin until the instance is "running"
-                                                while instance.State.Name <> InstanceStateName.Running do
-                                                    Log.info "waiting for instance: %A" instance.PublicDnsName
-                                                    Thread.Sleep(4000)
-                                                    
-                                                
 
                                                 // create a shutdown-function
                                                 let shutdown () =
                                                     async {
                                                         // issue the request
-                                                        let r = StopInstancesRequest(System.Collections.Generic.List [])
+                                                        let r = StopInstancesRequest(System.Collections.Generic.List [instance.InstanceId])
                                                         let! res = client.StopInstancesAsync r |> Async.AwaitTask
 
-                                                        // spin until the instance-state is "terminated"
-                                                        let instance = res.StoppingInstances |> Seq.head
-                                                        while instance.CurrentState.Name <> InstanceStateName.Terminated do
-                                                            Thread.Sleep 200
-
+                   
                                                         return ()
                                                     }
 
-                                                Log.info "instance %A ready" instance.PublicIpAddress
-                                                yield { address = instance.SubnetId; port = chainPort; shutdown = shutdown }
+                                                yield { privateAddress = instance.PrivateIpAddress; publicAddress = instance.PublicIpAddress; port = chainPort; shutdown = shutdown }
+                                      
                                             ]
 
                                         return instances
@@ -142,7 +183,7 @@ module EC2 =
                     Log.error "could not parse credentials-file"
                     Error e
 
-
+    
 
 module Sim =
 
@@ -152,7 +193,7 @@ module Sim =
 
             node.Start() |> ignore
 
-            return { address = "127.0.0.1"; port = 12345; shutdown = fun () -> async { return node.Stop() } }
+            return { privateAddress = "127.0.0.1"; publicAddress = "127.0.0.1"; port = 12345; shutdown = fun () -> async { return node.Stop() } }
         }
 
     let createChainPool (basePort : int) (directoryPort : int) =
@@ -170,7 +211,7 @@ module Sim =
 
                             node.Start() |> ignore
 
-                            yield { address = "127.0.0.1"; port = port; shutdown = fun () -> async { return node.Stop() } }
+                            yield { privateAddress = "127.0.0.1"; publicAddress = "127.0.0.1"; port = port; shutdown = fun () -> async { return node.Stop() } }
                         ]
 
                     return instances
