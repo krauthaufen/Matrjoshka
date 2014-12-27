@@ -18,11 +18,12 @@
     <DebugType>full</DebugType>
     <Optimize>false</Optimize>
     <Tailcalls>false</Tailcalls>
-    <OutputPath>bin\Debug\</OutputPath>
+    <OutputPath>..\build\Debug\</OutputPath>
     <DefineConstants>DEBUG;TRACE</DefineConstants>
     <WarningLevel>3</WarningLevel>
     <PlatformTarget>AnyCPU</PlatformTarget>
-    <DocumentationFile>bin\Debug\Babuschka2.XML</DocumentationFile>
+    <DocumentationFile>
+    </DocumentationFile>
     <Prefer32Bit>true</Prefer32Bit>
     <UseVSHostingProcess>true</UseVSHostingProcess>
     <StartArguments>client 54.72.135.139 9999</StartArguments>
@@ -31,13 +32,15 @@
     <DebugType>pdbonly</DebugType>
     <Optimize>true</Optimize>
     <Tailcalls>true</Tailcalls>
-    <OutputPath>bin\Release\</OutputPath>
+    <OutputPath>..\build\Release\</OutputPath>
     <DefineConstants>TRACE</DefineConstants>
     <WarningLevel>3</WarningLevel>
     <PlatformTarget>AnyCPU</PlatformTarget>
-    <DocumentationFile>bin\Release\Babuschka2.XML</DocumentationFile>
+    <DocumentationFile>
+    </DocumentationFile>
     <Prefer32Bit>true</Prefer32Bit>
     <StartArguments>client ec2-54-154-32-116.eu-west-1.compute.amazonaws.com 9999</StartArguments>
+    <Commandlineparameters>directory 9999</Commandlineparameters>
   </PropertyGroup>
   <PropertyGroup>
     <MinimumVisualStudioVersion Condition="'$(MinimumVisualStudioVersion)' == ''">11</MinimumVisualStudioVersion>
@@ -69,10 +72,20 @@
   </Choose>
   <Import Project="$(FSharpTargetsPath)" />
   <ItemGroup>
-    <Compile Include="Logging.fs" />
-    <Compile Include="Cryptography.fs" />
-    <Compile Include="V3.fs" />
-    <Compile Include="EC2.fs" />
+    <Compile Include="Core\Logging.fs" />
+    <Compile Include="Core\Cryptography.fs" />
+    <Compile Include="Core\Messages.fs" />
+    <Compile Include="Core\ISocket.fs" />
+    <Compile Include="Core\PlainSocket.fs" />
+    <Compile Include="Core\SecureSocket.fs" />
+    <Compile Include="Core\ForwardSocket.fs" />
+    <Compile Include="Relay\Relays.fs" />
+    <Compile Include="Directory\Directory.fs" />
+    <Compile Include="Client\Client.fs" />
+    <Compile Include="Virtualization\ChainPool.fs" />
+    <Compile Include="Virtualization\EC2.fs" />
+    <Compile Include="Virtualization\Simulation.fs" />
+    <Compile Include="Tests.fs" />
     <Compile Include="Program.fs" />
     <Content Include="packages.config" />
     <Content Include="app.config" />
@@ -80,11 +93,14 @@
   <ItemGroup>
     <Reference Include="AWSSDK">
       <HintPath>..\packages\AWSSDK.2.3.12.0\lib\net45\AWSSDK.dll</HintPath>
-      <Private>True</Private>
     </Reference>
     <Reference Include="FSharp.Core, Version=4.3.1.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a" />
     <Reference Include="FsPickler">
       <HintPath>..\packages\FsPickler.1.0.3\lib\net45\FsPickler.dll</HintPath>
+    </Reference>
+    <Reference Include="Mono.Security">
+      <HintPath>..\packages\Mono.Security.3.2.3.0\lib\net45\Mono.Security.dll</HintPath>
+      <Private>True</Private>
     </Reference>
     <Reference Include="mscorlib" />
     <Reference Include="System" />

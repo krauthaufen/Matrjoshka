@@ -1,5 +1,7 @@
+/*.userprefs
 /*.suo
 bin/
 obj/
 /packages
 !/packages/*.config
+/build

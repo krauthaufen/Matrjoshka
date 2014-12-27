@@ -9,8 +9,8 @@ open System.Threading
 open System.Threading.Tasks
 
 open System.Security.Cryptography
-open Babuschka
-open Babuschka3
+open Matrjoshka
+open Matrjoshka.Cryptography
 
 let chainNodeCount = 3
 let chainNodeBasePort = 9985
@@ -31,14 +31,25 @@ let usage() =
     printfn "        the chain node sends alive-messages to the directory"
     printfn "        and accepts client-connections at tcp-port" 
 
-
-
 [<EntryPoint>]
 let main args =
 
+//    let dh0 = DiffieHellman.create()
+//    let dh1 = DiffieHellman.create()
+//
+//    let ex0 = DiffieHellman.publicKey dh0
+//    let k1 = DiffieHellman.deriveKey dh1 ex0
+//    let ex1 = DiffieHellman.publicKey dh1
+//    let k0 = DiffieHellman.deriveKey dh0 ex1
+//
+//
+//    printfn "k0: %A" (Convert.ToBase64String(k0))
+//    printfn "k1: %A" (Convert.ToBase64String(k1))
+//    Environment.Exit(0)
+
     match args with
         | [|"chain"; directory; listenPort|] ->
-            let c = Babuschka3.Relay(directory, directoryPingPort, "chain", Int32.Parse listenPort)
+            let c = Relay(directory, directoryPingPort, "chain", Int32.Parse listenPort)
             c.Start()
 
             let mutable running = true
@@ -57,11 +68,12 @@ let main args =
 
             let port = Int32.Parse clientPort
 
-            let pool = 
+            (*let pool = 
                 match EC2.createChainPool "cred.txt" chainNodeBasePort directoryPingPort with
                     | Success pool -> pool
                     | Error e -> 
-                        failwith e
+                        failwith e*)
+            let pool = Sim.createChainPool 12345 directoryPingPort
 
             let chainNodeHandles = pool.StartChainAsync chainNodeCount |> Async.RunSynchronously
 
@@ -72,7 +84,7 @@ let main args =
                     | Some i -> i
                     | None -> name
 
-            let d = Babuschka3.Directory(port, directoryPingPort, remapName)
+            let d = Directory(port, directoryPingPort, remapName)
             d.Start()
             
             d.WaitForChainNodes(chainNodeCount)
@@ -101,7 +113,7 @@ let main args =
             0
 
         | [|"client"; directory; directoryPort|] ->
-            let c = Babuschka3.Originator(directory, Int32.Parse directoryPort)
+            let c = Client(directory, Int32.Parse directoryPort)
             let mutable running = true
 
             while running do
