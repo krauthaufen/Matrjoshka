@@ -16,9 +16,9 @@ type Client(directory : string, port : int) =
 
     let reader = new StreamReader(stream)
     let writer = new StreamWriter(stream)
-    //todo refactor this :D
-    let getNewChain(l: int) =
-        let r = DirectoryRequest.Chain l
+
+    let getChain(req: int->DirectoryRequest, l:int) =
+        let r = req l
         let data = pickler.Pickle r
         let str = Convert.ToBase64String data
         writer.WriteLine str
@@ -32,22 +32,13 @@ type Client(directory : string, port : int) =
                 list
             | InsufficientRelays available ->
                 failwithf "could not get chain of length %d (%d relays available)" l available
+
+    let getNewChain(l: int) =
+        getChain (DirectoryRequest.Chain, l)
 
     let getRandomChain(l : int) =
-        let r = DirectoryRequest.Random l
-        let data = pickler.Pickle r
-        let str = Convert.ToBase64String data
-        writer.WriteLine str
-        writer.Flush()
+        getChain (DirectoryRequest.Random, l)
 
-        let reply = reader.ReadLine()
-        let reply = Convert.FromBase64String reply
-
-        match pickler.UnPickle reply with
-            | Nodes list ->
-                list
-            | InsufficientRelays available ->
-                failwithf "could not get chain of length %d (%d relays available)" l available
 
     let rec builChain (chain : list<string * int * RsaPublicKey * int>) =
         match chain with
