@@ -1,4 +1,4 @@
-﻿namespace Babuschka.Cryptography
+﻿namespace Matrjoshka.Cryptography
 
 open System
 open System.Net
@@ -20,7 +20,7 @@ type DiffieHellmanPublicKey = byte[]
 type RsaPublicKey = byte[]
 
 type Rsa = private { rsa : RSAManaged; canEncrypt : bool; canDecrypt : bool }
-type Aes = private { aes : AesCryptoServiceProvider }
+type Aes = private { aes : AesManaged }
 type DiffieHellman = private { mutable dh : DiffieHellmanManaged }
 
 
@@ -92,13 +92,13 @@ module Rsa =
 [<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
 module Aes =
     let createNew (key : byte[]) =
-        let aes = new AesCryptoServiceProvider()
+        let aes = new AesManaged()
         aes.Key <- Array.sub key 0 (aes.KeySize / 8)
         aes.GenerateIV()
         { aes = aes }
 
     let create (key : byte[]) (iv : byte[]) =
-        let aes = new AesCryptoServiceProvider()
+        let aes = new AesManaged()
         aes.Key <- Array.sub key 0 (aes.KeySize / 8)
         aes.IV <- iv
         { aes = aes }

@@ -70,10 +70,20 @@
   </Choose>
   <Import Project="$(FSharpTargetsPath)" />
   <ItemGroup>
-    <Compile Include="Logging.fs" />
-    <Compile Include="Cryptography.fs" />
-    <Compile Include="V3.fs" />
-    <Compile Include="EC2.fs" />
+    <Compile Include="Core\Logging.fs" />
+    <Compile Include="Core\Cryptography.fs" />
+    <Compile Include="Core\Messages.fs" />
+    <Compile Include="Core\ISocket.fs" />
+    <Compile Include="Core\PlainSocket.fs" />
+    <Compile Include="Core\SecureSocket.fs" />
+    <Compile Include="Core\ForwardSocket.fs" />
+    <Compile Include="Relay\Relays.fs" />
+    <Compile Include="Directory\Directory.fs" />
+    <Compile Include="Client\Client.fs" />
+    <Compile Include="Virtualization\ChainPool.fs" />
+    <Compile Include="Virtualization\EC2.fs" />
+    <Compile Include="Virtualization\Simulation.fs" />
+    <Compile Include="Tests.fs" />
     <Compile Include="Program.fs" />
     <Content Include="packages.config" />
     <Content Include="app.config" />
@@ -86,13 +96,16 @@
     <Reference Include="FsPickler">
       <HintPath>..\packages\FsPickler.1.0.3\lib\net45\FsPickler.dll</HintPath>
     </Reference>
+    <Reference Include="Mono.Security">
+      <HintPath>..\packages\Mono.Security.3.2.3.0\lib\net45\Mono.Security.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
     <Reference Include="mscorlib" />
     <Reference Include="System" />
     <Reference Include="System.Core" />
     <Reference Include="System.Numerics" />
     <Reference Include="System.Web" />
     <Reference Include="System.Security" />
-    <Reference Include="Mono.Security" />
   </ItemGroup>
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.

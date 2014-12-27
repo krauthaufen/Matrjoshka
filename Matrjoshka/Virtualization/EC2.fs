@@ -1,4 +1,4 @@
-﻿namespace Babuschka3
+﻿namespace Matrjoshka
 
 open Amazon.EC2.Model
 open Amazon.EC2.Util
@@ -8,25 +8,10 @@ open System.IO
 open System.Threading
 open System.Threading.Tasks
 open System
-open Babuschka3
-open Babuschka
-
-type Error<'a> = Success of 'a | Error of string
-
-type ChainNodeHandle = { privateAddress : string; publicAddress : string; port : int; shutdown : unit -> Async<unit> }
-
-[<AbstractClass>]
-type ChainPool() =
-    abstract member Dispose : unit -> unit
-    abstract member StartChainAsync : int -> Async<list<ChainNodeHandle>>
-    
-    interface IDisposable with
-        member x.Dispose() = x.Dispose()
-
 
 module EC2 =
 
-    let Log = Logging.logger "EC2"
+    let private Log = Logging.logger "EC2"
     let private imageName = "G1-T3-Windows"
     let private startupScript (directoryIp : string) (port : int) =
         let str = sprintf "<script>cmd /C \"C:\\Matrjoshka\\Matrjoshka.exe chain %s %d\"</script>" directoryIp port
@@ -187,44 +172,3 @@ module EC2 =
                 | Error e ->
                     Log.error "could not parse credentials-file"
                     Error e
-
-    
-
-module Sim =
-
-    let test =
-        async {
-            let node = Babuschka3.Relay("127.0.0.1", 12345, sprintf "c%d" 54321, 54321)
-
-            node.Start() |> ignore
-
-            return { privateAddress = "127.0.0.1"; publicAddress = "127.0.0.1"; port = 12345; shutdown = fun () -> async { return node.Stop() } }
-        }
-
-    let createChainPool (basePort : int) (directoryPort : int) =
-        let currentPort = ref basePort
-
-        { new ChainPool() with
-
-            member x.StartChainAsync (count : int) =
-                async {
-                    let instances = 
-                        [ for _ in 0..count-1 do
-                            let port = Interlocked.Increment(&currentPort.contents)
-
-                            let node = Relay("127.0.0.1", directoryPort, sprintf "c%d" port, port)
-
-                            node.Start() |> ignore
-
-                            yield { privateAddress = "127.0.0.1"; publicAddress = "127.0.0.1"; port = port; shutdown = fun () -> async { return node.Stop() } }
-                        ]
-
-                    return instances
-                }
-
-            member x.Dispose() = ()        
-        }
-
-
-
-

@@ -1,6 +1,4 @@
-﻿#if COMPILED
-namespace Babuschka
-#endif
+﻿namespace Matrjoshka
 
 open System
 open System.Text.RegularExpressions
@@ -102,16 +100,3 @@ module Logging =
         member x.info fmt = Printf.kprintf (fun str -> x.WriteColoredLine 0xFFFFFF str) fmt
         member x.warn fmt = Printf.kprintf (fun str -> x.WriteColoredLine 0x7F7F00 str) fmt
         member x.error fmt = Printf.kprintf (fun str -> x.WriteColoredLine 0xFF0000 str) fmt
-
-module Test =
-    let Log = logger "a"
-
-
-    let run() =
-        Log.debug "debug: %A" [1;2]
-
-        Log.info "some test: %A\r\ntest" [1;2]
-
-        Log.warn "warning"
-        Log.error "error"
-
