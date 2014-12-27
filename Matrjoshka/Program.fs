@@ -68,12 +68,12 @@ let main args =
 
             let port = Int32.Parse clientPort
 
-            (*let pool = 
+            let pool = 
                 match EC2.createChainPool "cred.txt" chainNodeBasePort directoryPingPort with
                     | Success pool -> pool
                     | Error e -> 
-                        failwith e*)
-            let pool = Sim.createChainPool 12345 directoryPingPort
+                        failwith e
+            //let pool = Sim.createChainPool 12345 directoryPingPort
 
             let chainNodeHandles = pool.StartChainAsync chainNodeCount |> Async.RunSynchronously
 
