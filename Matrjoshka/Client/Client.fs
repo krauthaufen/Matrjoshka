@@ -16,6 +16,22 @@ type Client(directory : string, port : int) =
 
     let reader = new StreamReader(stream)
     let writer = new StreamWriter(stream)
+    //todo refactor this :D
+    let getNewChain(l: int) =
+        let r = DirectoryRequest.Chain l
+        let data = pickler.Pickle r
+        let str = Convert.ToBase64String data
+        writer.WriteLine str
+        writer.Flush()
+
+        let reply = reader.ReadLine()
+        let reply = Convert.FromBase64String reply
+
+        match pickler.UnPickle reply with
+            | Nodes list ->
+                list
+            | InsufficientRelays available ->
+                failwithf "could not get chain of length %d (%d relays available)" l available
 
     let getRandomChain(l : int) =
         let r = DirectoryRequest.Random l
@@ -33,9 +49,9 @@ type Client(directory : string, port : int) =
             | InsufficientRelays available ->
                 failwithf "could not get chain of length %d (%d relays available)" l available
 
-    let rec builChain (chain : list<string * int * RsaPublicKey>) =
+    let rec builChain (chain : list<string * int * RsaPublicKey * int>) =
         match chain with
-            | [(remote,port,key)] ->
+            | [(remote,port,key, useCount)] ->
                 let plain = PlainSocket()
                 plain.Connect(remote, port)
                 //Thread.Sleep(1000)
@@ -45,7 +61,7 @@ type Client(directory : string, port : int) =
                     | Success -> Choice1Of2 sec
                     | Error e -> Choice2Of2 e
 
-            | (remote, port, key)::rest ->
+            | (remote, port, key, useCount)::rest ->
                 match builChain rest with
                     | Choice2Of2 e -> Choice2Of2 e
                     | Choice1Of2 inner ->
@@ -61,10 +77,14 @@ type Client(directory : string, port : int) =
 
     let mutable client : Option<SecureSocket> = None
 
+
+    member x.GetNewChain(count: int) =
+        getNewChain count
+
     member x.GetRandomChain(count : int) =
         getRandomChain count
 
-    member x.Connect(chain : list<string * int * RsaPublicKey>) =
+    member x.Connect(chain : list<string * int * RsaPublicKey * int>) =
 
         match builChain (List.rev chain) with
             | Choice1Of2 newClient ->
@@ -80,7 +100,7 @@ type Client(directory : string, port : int) =
                 Error e
 
     member x.Connect(count : int) =
-        let c = x.GetRandomChain(count)
+        let c = x.GetNewChain(count)
         x.Connect c
 
     member x.Disconnect() =

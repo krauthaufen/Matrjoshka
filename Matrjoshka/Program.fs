@@ -12,7 +12,7 @@ open System.Security.Cryptography
 open Matrjoshka
 open Matrjoshka.Cryptography
 
-let chainNodeCount = 3
+let chainNodeCount = 5
 let chainNodeBasePort = 9985
 let directoryPingPort = 9980
 

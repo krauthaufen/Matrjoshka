@@ -17,10 +17,19 @@ type Directory(port : int, pingPort : int, remapAddress : string -> string) =
 
     let Log = logger "dir"
 
-    let content = ConcurrentDictionary<string * int, byte[] * DateTime>()
+    let content = ConcurrentDictionary<string * int, byte[] * DateTime * int>()
 
     let start (a : Async<'a>) =
         Async.StartAsTask(a, cancellationToken = cancel.Token) |> ignore
+
+
+
+    let increaseUseCount (a,b) =
+        let worked, (c,d,useCount) = content.TryGetValue ((a,b)) 
+        printf "worked : %A" worked
+        content.TryUpdate ((a,b), (c,d,useCount+1), (c,d,useCount))
+
+
 
     let startPingListener() =
         async {
@@ -40,10 +49,10 @@ type Directory(port : int, pingPort : int, remapAddress : string -> string) =
 
                             let addFun (address, port) =
                                 Log.info "chain logged in: %s:%d" address port
-                                key, time
+                                key, time, 0
 
-                            let updateFun old (address, port) =
-                                key, time
+                            let updateFun (address, port) (oldKey, oldTime, oldUseCount) =
+                                key, time, oldUseCount
 
                             content.AddOrUpdate(id, addFun, updateFun) |> ignore
 
@@ -63,21 +72,21 @@ type Directory(port : int, pingPort : int, remapAddress : string -> string) =
         for (KeyValue(k,v)) in content do
                     
             let (address, port) = k
-            let (key, time) = v
+            let (key, time, useCount) = v
 
             let age = DateTime.Now - time
 
             if age.TotalSeconds > 60.0 then
                 remove <- k::remove
             else
-                result <- (address, port, key)::result
+                result <- (address, port, key, useCount)::result
 
                                 
         for r in remove do
             content.TryRemove r |> ignore
 
         result
-
+      
     let startInstance(client : TcpClient) =
         let Log = logger (sprintf "dir/%A" client.Client.RemoteEndPoint)
 
@@ -114,6 +123,16 @@ type Directory(port : int, pingPort : int, remapAddress : string -> string) =
                                     Nodes (set |> Set.toList |> List.map (fun i -> arr.[i]))
                                 else
                                     InsufficientRelays arr.Length
+                             | Chain count ->
+                                 let arr = all |> List.sortBy (fun (a,b,c,d) -> d) |> List.toArray
+                                 if arr.Length >= count && count < 10 then
+                                    let list = [0..count-1] |> List.map (fun i -> arr.[i])
+                                    list |> List.iter (fun (a,b,_,_) -> increaseUseCount (a,b) |> ignore)
+                                    printf "List: %A" list
+                                    Nodes list
+                                 else
+                                    InsufficientRelays arr.Length
+                                    
 
 
                     let arr = pickler.Pickle reply
@@ -163,8 +182,8 @@ type Directory(port : int, pingPort : int, remapAddress : string -> string) =
         Log.info "finished waiting for chain nodes"
 
     member x.PrintChainNodes() =
-        for (KeyValue((address, port),(key, last))) in content do
-            Log.info "%s:%d (last alive: %A)" address port last
+        for (KeyValue((address, port),(key, last, useCount))) in content do
+            Log.info "%s:%d (last alive: %A) (used %d times)" address port last useCount
         ()
 
     member x.Run() =
@@ -178,4 +197,7 @@ type Directory(port : int, pingPort : int, remapAddress : string -> string) =
 
     member x.Stop() =
         cancel.Cancel()
+
+    member x.IncreaseUseCount (key : string * int) =
+        increaseUseCount key
 
