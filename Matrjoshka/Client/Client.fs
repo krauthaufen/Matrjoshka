@@ -18,7 +18,7 @@ type Client(directory : string, port : int) =
     let writer = new StreamWriter(stream)
 
     let getRandomChain(l : int) =
-        let r = Random l
+        let r = DirectoryRequest.Random l
         let data = pickler.Pickle r
         let str = Convert.ToBase64String data
         writer.WriteLine str
@@ -38,7 +38,7 @@ type Client(directory : string, port : int) =
             | [(remote,port,key)] ->
                 let plain = PlainSocket()
                 plain.Connect(remote, port)
-                Thread.Sleep(1000)
+                //Thread.Sleep(1000)
 
                 let sec = SecureSocket(plain)
                 match sec.Connect key with
