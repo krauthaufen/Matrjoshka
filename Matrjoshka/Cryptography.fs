@@ -13,64 +13,79 @@ open System.Security.Cryptography
 open System.Net.Security
 open Nessos.FsPickler
 open Nessos.FsPickler.Combinators
+open Mono.Security
+open Mono.Security.Cryptography
 
 type DiffieHellmanPublicKey = byte[]
 type RsaPublicKey = byte[]
 
-type DiffieHellman = private { dh : ECDiffieHellmanCng }
-type Rsa = private { rsa : RSACryptoServiceProvider; canEncrypt : bool; canDecrypt : bool }
+type Rsa = private { rsa : RSAManaged; canEncrypt : bool; canDecrypt : bool }
 type Aes = private { aes : AesCryptoServiceProvider }
+type DiffieHellman = private { mutable dh : DiffieHellmanManaged }
 
-#if MonoCs
 
-implement me
-
-#else
 [<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
 module DiffieHellman =
+    let private pickler = FsPickler.CreateBinary(true)
+    type Handshake = { g : byte[]; p : byte[]; exchange : byte[] }
+
     let create() =
-        { dh = new ECDiffieHellmanCng() }
+        { dh = new DiffieHellmanManaged() }
 
     let publicKey (dh : DiffieHellman) =
-        dh.dh.PublicKey.ToByteArray()
+        //let exchange = dh.dh.CreateKeyExchange()
+        //let parameters = dh.dh.ExportParameters(false)
+        //let handshake = { g = parameters.G; p = parameters.P; exchange = exchange }
+        //pickler.Pickle(handshake)
+
+        dh.dh.CreateKeyExchange()
 
     let deriveKey (dh : DiffieHellman) (publicKey : byte[]) =
-        let key = ECDiffieHellmanCngPublicKey.FromByteArray(publicKey, CngKeyBlobFormat.GenericPublicBlob)
-        dh.dh.DeriveKeyMaterial(key)
+        //let handshake : Handshake = pickler.UnPickle(publicKey)
+        //dh.dh.ImportParameters(DHParameters(G = handshake.g, P = handshake.p))
+        dh.dh.DecryptKeyExchange(publicKey)
+        //let key = ECDiffieHellmanCngPublicKey.FromByteArray(publicKey, CngKeyBlobFormat.GenericPublicBlob)
+        //dh.dh.DeriveKeyMaterial(key)
 
     let destroy (dh : DiffieHellman) =
         dh.dh.Dispose()
 
 [<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
 module Rsa =
+    let private bits = 2048
+
     let create() =
-        { rsa = new RSACryptoServiceProvider(2048); canEncrypt = true; canDecrypt = true }
+        { rsa = new RSAManaged(bits); canEncrypt = true; canDecrypt = true }
 
     let destroy (rsa : Rsa) =
         rsa.rsa.Dispose()
 
     let publicKey (rsa : Rsa) =
         let p = rsa.rsa.ExportParameters(false)
-        Array.concat [p.Exponent;p.Modulus]
+        Array.concat [BitConverter.GetBytes(p.Exponent.Length); p.Exponent;p.Modulus]
 
     let fromPublicKey (key : byte[]) =
-        let exp = Array.sub key 0 3
-        let modulus = Array.sub key 3 (key.Length - 3)
+        let length = BitConverter.ToInt32(key, 0)
+        let key = Array.sub key 4 (key.Length - 4)
+        let exp = Array.sub key 0 length
+        let modulus = Array.sub key length (key.Length - length)
 
         let p = RSAParameters(Exponent = exp, Modulus = modulus)
-        let rsa = new RSACryptoServiceProvider(2048)
+        let rsa = new RSAManaged(bits)
         rsa.ImportParameters(p)
         { rsa = rsa; canEncrypt = true; canDecrypt = false }
 
     let encrypt (rsa : Rsa) (data : byte[]) =
+        //data
         if rsa.canEncrypt then
-            rsa.rsa.Encrypt(data, true)
+            rsa.rsa.EncryptValue(data)
         else
             failwith "cannot encrypt since Rsa does not posess the public key"
 
     let decrypt (rsa : Rsa) (data : byte[]) =
+        //data
         if rsa.canDecrypt then
-            rsa.rsa.Decrypt(data, true)
+            rsa.rsa.DecryptValue(data)
         else
             failwith "cannot decrypt since Rsa does not posess the private key"
 
@@ -78,13 +93,13 @@ module Rsa =
 module Aes =
     let createNew (key : byte[]) =
         let aes = new AesCryptoServiceProvider()
-        aes.Key <- key
+        aes.Key <- Array.sub key 0 (aes.KeySize / 8)
         aes.GenerateIV()
         { aes = aes }
 
     let create (key : byte[]) (iv : byte[]) =
         let aes = new AesCryptoServiceProvider()
-        aes.Key <- key
+        aes.Key <- Array.sub key 0 (aes.KeySize / 8)
         aes.IV <- iv
         { aes = aes }
 
@@ -122,4 +137,3 @@ module Sha =
 
     let hash (data : byte[]) =
         sha.ComputeHash(data)
-#endif
