@@ -11,14 +11,20 @@ open System
 
 module EC2 =
 
+    
+
     let private Log = Logging.logger "EC2"
-    let private imageName = "G1-T3-Windows"
+    let private imageName = "G1-T3-Mono"
+    let private securityGroup = "G1-T3-General"
+    let private keyName = "IrelandKeys"
+
     let private startupScript (directoryIp : string) (port : int) =
-        let str = sprintf "<script>cmd /C \"C:\\Matrjoshka\\Matrjoshka.exe chain %s %d\"</script>" directoryIp port
+        //let str = sprintf "<script>cmd /C \"C:\\Matrjoshka\\Matrjoshka.exe chain %s %d\"</script>" directoryIp port
+
+        let str = sprintf "#!/bin/bash\n/home/ubuntu/start chain %s %d" directoryIp port
 
         Log.info "startup script for chains: %A" str
-        let bytes = System.Text.ASCIIEncoding.Default.GetBytes str
-
+        let bytes = System.Text.ASCIIEncoding.ASCII.GetBytes str
         Convert.ToBase64String(bytes)
 
 
@@ -26,7 +32,7 @@ module EC2 =
 
     let private parseCredentialsFile(content : string) =
         let lines = String.lines content |> List.toArray
-        if lines.Length = 2 then
+        if lines.Length >= 2 then
             let lines = lines |> Array.map (fun l -> l.Trim())
             Success { accessKeyId = lines.[0]; secretAccessKey = lines.[1];}
         else
@@ -72,15 +78,15 @@ module EC2 =
 
                                         let images = client.DescribeImages(getImageId)
 
-                                        let image = images.Images |> Seq.find (fun i -> i.Name = "G1-T3-Windows")
+                                        let image = images.Images |> Seq.find (fun i -> i.Name = imageName)
                                         let imageId = image.ImageId
 
                                         let request = RunInstancesRequest(imageId, count, count)
 
                                         request.UserData <- startupScript myself chainPort
-                                        request.InstanceType <- InstanceType.T2Small
-                                        request.SecurityGroups.Add "G1-T3-Windows"
-                                        request.KeyName <- "G1-T3-Win"
+                                        request.InstanceType <- InstanceType.T2Micro
+                                        request.SecurityGroups.Add securityGroup
+                                        request.KeyName <- keyName
                                         
 
                                         // start instances
@@ -91,7 +97,7 @@ module EC2 =
 
                                         // create tags (Name) for instances
                                         Log.info "creating tags"
-                                        let tags = response.Reservation.Instances |> Seq.map(fun instance -> Tag("Name", sprintf "G1-T3-Chain")) |> Seq.toList
+                                        let tags = response.Reservation.Instances |> Seq.map(fun instance -> Tag("Name", "G1-T3-Chain")) |> Seq.toList
                                         let ids = System.Collections.Generic.List(response.Reservation.Instances |> Seq.map (fun i -> i.InstanceId))
 
                                         let createTags = CreateTagsRequest(ids, System.Collections.Generic.List(tags))
