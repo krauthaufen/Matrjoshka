@@ -21,7 +21,7 @@ module EC2 =
     let private startupScript (directoryIp : string) (port : int) =
         //let str = sprintf "<script>cmd /C \"C:\\Matrjoshka\\Matrjoshka.exe chain %s %d\"</script>" directoryIp port
 
-        let str = sprintf "#!bin/bash /home/ubuntu/start %s %d" directoryIp port
+        let str = sprintf "#!bin/bash\r\n/home/ubuntu/start %s %d" directoryIp port
 
         Log.info "startup script for chains: %A" str
         let bytes = System.Text.ASCIIEncoding.Default.GetBytes str
@@ -33,7 +33,7 @@ module EC2 =
 
     let private parseCredentialsFile(content : string) =
         let lines = String.lines content |> List.toArray
-        if lines.Length = 2 then
+        if lines.Length >= 2 then
             let lines = lines |> Array.map (fun l -> l.Trim())
             Success { accessKeyId = lines.[0]; secretAccessKey = lines.[1];}
         else
