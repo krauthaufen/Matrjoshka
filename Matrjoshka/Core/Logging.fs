@@ -88,6 +88,121 @@ type NamedLogger(name : string, inner : ILogger) =
         member x.WriteLine line = x.WriteLine line
         member x.WriteColoredLine color line = x.WriteColoredLine color line
 
+type MonitorableHtmlLogger(port : int) =
+    let builder = System.Text.StringBuilder()
+
+
+    let template =
+        """
+        <html>
+            <head>
+                <title>Matrjohska Log</title>
+
+                <style type="text/css">
+                    body {
+                        background: #000000;
+                        color: #FFFFFF;
+                        font-family: Consolas;
+                    }
+
+                    .content {
+                        padding-left: 20px;
+                    }
+                </style>
+
+                <script src="http://code.jquery.com/jquery-1.9.1.min.js"></script>
+                <script type="text/javascript">
+                    var content = null;
+                    var last = null;
+
+                    function reload() {
+                        try {
+                            var request = new XMLHttpRequest();
+
+                            request.onreadystatechange = function() {
+                                if(request.readyState == 4 && request.status == 200 && last != request.responseText) {
+                                    content.innerHTML = request.responseText;
+                                    last = request.responseText;
+                                    window.scrollTo(0,document.body.scrollHeight);
+                                }
+                            };
+
+                            request.open("GET", document.URL, true);
+                            request.send();
+
+                            setTimeout('reload()', 500);
+                            
+                        }
+                        catch(e) {
+                            console.log("error");
+                        }
+                    }
+                    $( document ).ready(function() {
+                        content = document.getElementById("content");
+                        reload();
+                    });
+
+                </script>
+            </head>
+            <body>
+                <div id="content" class="content">
+                    {Content}
+                </div>
+            </body>
+
+        </html>
+        """
+
+    do
+        let listener = new System.Net.HttpListener()
+        listener.Prefixes.Add ("http://localhost:" + string port + "/")
+        listener.Start()
+
+        let run =
+            async {
+                while true do
+                    let! c = listener.GetContextAsync() |> Async.AwaitTask
+
+
+                    match c.Request.Url.LocalPath with
+                        | "/" ->
+                            let str = builder.ToString()
+
+                            let str = 
+                                if str.Length > 100000 then
+                                    str.Substring(str.Length - 100000, 100000)
+                                else
+                                    str
+
+                            let str = template.Replace("{Content}", str)
+
+
+                            let bytes = System.Text.ASCIIEncoding.UTF8.GetBytes(str)
+                            c.Response.ContentLength64 <- bytes.LongLength
+                            c.Response.OutputStream.Write(bytes, 0, bytes.Length)
+                            c.Response.ContentType <- "text/html"
+                            c.Response.StatusCode <- 200
+                        | _ ->
+                            c.Response.StatusCode <- 404
+
+            }
+
+        run |> Async.StartAsTask |> ignore
+
+    let hexColor (c : int) =
+        sprintf "#%02X%02X%02X" ((c &&& 0xFF0000) >>> 16) ((c &&& 0x00FF00) >>> 8) (c &&& 0x0000FF)
+
+    member x.WriteColoredLine (color : int) (line : string) =
+        builder.AppendFormat("<div style=\" color: {0}; \">{1}</div>\r\n", hexColor color, line) |> ignore
+
+    member x.WriteLine (line : string) =
+        builder.AppendFormat("<div>{0}</div>\r\n", line) |> ignore
+
+    interface ILogger with
+        member x.WriteLine line = x.WriteLine line
+        member x.WriteColoredLine color line = x.WriteColoredLine color line
+
+
 [<AutoOpen>]
 module Logging =
     let private real = ConsoleLogger() :> ILogger
