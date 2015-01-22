@@ -85,6 +85,7 @@
     <Compile Include="Virtualization\ChainPool.fs" />
     <Compile Include="Virtualization\EC2.fs" />
     <Compile Include="Virtualization\Simulation.fs" />
+    <Compile Include="WebServer.fs" />
     <Compile Include="Tests.fs" />
     <Compile Include="Program.fs" />
     <Content Include="packages.config" />
