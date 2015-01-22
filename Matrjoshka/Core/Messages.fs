@@ -16,7 +16,7 @@ type Error = Success | Error of string
 /// + Forward consists of a target (with its port) and
 ///   payload-data which shall be forwarded
 /// + Command consists of a string-command and some
-///   serializable object (can be used for anything)
+///   seRandomable object (can be used for anything)
 /// + Request represents a HTTP-Request knowing its target/port
 ///   and the binary data which shall be sent to the remote
 /// </summary>
@@ -38,8 +38,9 @@ type Ping =
 
 type DirectoryRequest =
     | Random of int
+    | Chain of int
     | All
     
 type DirectoryResponse =
-    | Nodes of list<string * int * RsaPublicKey>
+    | Nodes of list<string * int * RsaPublicKey * int>
     | InsufficientRelays of int
