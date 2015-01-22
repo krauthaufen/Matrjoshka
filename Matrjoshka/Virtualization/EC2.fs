@@ -92,7 +92,7 @@ module EC2 =
                                         // start instances
                                         Log.info "issuing request"
                                         let! response = client.RunInstancesAsync(request) |> Async.AwaitTask
-                                        Log.info "got response´with status: %A" response.HttpStatusCode
+                                        Log.info "got response with status: %A" response.HttpStatusCode
 
 
                                         // create tags (Name) for instances
@@ -154,6 +154,9 @@ module EC2 =
                                                         let r = StopInstancesRequest(System.Collections.Generic.List [instance.InstanceId])
                                                         let! res = client.StopInstancesAsync r |> Async.AwaitTask
 
+
+                                                        let term = TerminateInstancesRequest(System.Collections.Generic.List [instance.InstanceId])
+                                                        let! res = client.StopInstancesAsync r |> Async.AwaitTask
                    
                                                         return ()
                                                     }

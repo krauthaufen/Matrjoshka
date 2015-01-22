@@ -26,7 +26,7 @@
     </DocumentationFile>
     <Prefer32Bit>true</Prefer32Bit>
     <UseVSHostingProcess>true</UseVSHostingProcess>
-    <StartArguments>client 54.72.135.139 9999</StartArguments>
+    <StartArguments>client ec2-54-171-47-139.eu-west-1.compute.amazonaws.com 9999</StartArguments>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <DebugType>pdbonly</DebugType>
