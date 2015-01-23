@@ -46,13 +46,7 @@
                 }
                 else{
                     $.get( "/qod" , function( data ) {
-                        var result = $.parseJSON(data);
-                        if(result.status == undefined || result.status == 1) {
-                            $("#quote").html(JSON.stringify(result) + "<h1>" + result.contents.quote + "</h1><br>" + result.contents.author);
-                        }
-                        else {
-                            alert("Could not get quote: " + result.error);
-                        }
+                        $("#quote").html(data);
                     });
                 }
             }
@@ -69,7 +63,7 @@
             <h1><img src="img/logo.png" /> Matrjoshka Routing <img src="img/logo.png" /></h1>
             <button class="btn btn-xlg btn-primary" onclick="getQuote()">Get Quote!</button>
             <button class="btn btn-xlg btn-primary" onclick="rebuildChain()">Build New Chain</button>
-            <div class="routing"><img src="img/southpark-matrjoshka.gif" /></div>
+            <div id="gif" class="routing"><img src="img/southpark-matrjoshka.gif" /></div>
             <div class="entities">
                 <div class="col-sm-3">
                     <img src="img/computer_kenny.png" />

@@ -119,7 +119,7 @@ module ClientMonitor =
 
                 "/qod", fun (r : HttpListenerRequest) ->
                     try
-                        c.Send(Request("http://api.theysaidso.com/qod.json", 0, null))
+                        c.Send(Request("http://localhost:1234/", 0, null))
                         let data = c.Receive() |> Async.RunSynchronously
                         match data with
                             | Data content ->

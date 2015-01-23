@@ -101,6 +101,38 @@ let main args =
 
             0
 
+        | [|"service"; port|] ->
+
+            let quotes =
+                [|
+                    "You know nothing, Jon Snow!"
+                    "Brace yourself! Winter is coming!"
+                    "When you play the game of thrones, you win or you die."
+                    "Fear cuts deeper than swords."
+                    "What do we say to the Lord of Death? - Not today."
+                    "Noseless and Handless, the Lannister Boys."
+                    "The North remembers."
+                    "A Lannister always pays his debts."
+                    "The man who passes the sentence should swing the sword."
+                    "A dragon is not a slave."
+                |]
+
+            let r = System.Random()
+
+            let pages =
+                Map.ofList [
+                    "/", fun _ ->
+                        let id = r.Next(quotes.Length)
+                        let q = quotes.[id]
+                        q
+                ]
+            let s = HttpServer(System.Int32.Parse port, pages)
+
+            s.Run()
+
+            0
+            
+
         | [|"client"; directory; directoryPort|] ->
             let c = Client(directory, Int32.Parse directoryPort)
             let mutable running = true
@@ -131,7 +163,7 @@ let main args =
                                 ()
 
                     | "!qod" ->
-                        c.Send(Request("http://api.theysaidso.com/qod.json", 0, null))
+                        c.Send(Request("http://localhost:1234/", 0, null))
 
                         let data = c.Receive() |> Async.RunSynchronously
 
