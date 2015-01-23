@@ -12,7 +12,7 @@ open System.Security.Cryptography
 open Matrjoshka
 open Matrjoshka.Cryptography
 
-let chainNodeCount = 5
+let chainNodeCount = 6
 let chainNodeBasePort = 9985
 let directoryPingPort = 9980
 
@@ -33,9 +33,6 @@ let usage() =
 
 [<EntryPoint>]
 let main args =
-    // uncomment the following to start a very basic
-    // webserver at port 8080
-    //WebServerTest.run()
 
     match args with
         | [|"chain"; directory; listenPort|] ->
@@ -66,11 +63,11 @@ let main args =
             let pool = Sim.createChainPool 12345 directoryPingPort
 
             let chainNodeHandles = pool.StartChainAsync chainNodeCount |> Async.RunSynchronously
+            let mapping = ref (chainNodeHandles |> List.map (fun h -> h.privateAddress, h.publicAddress) |> Map.ofList)
 
-            let mapping = chainNodeHandles |> List.map (fun h -> h.privateAddress, h.publicAddress) |> Map.ofList
 
             let remapName (name : string) =
-                match Map.tryFind name mapping with
+                match Map.tryFind name !mapping with
                     | Some i -> i
                     | None -> name
 
@@ -79,12 +76,33 @@ let main args =
             
             d.WaitForChainNodes(chainNodeCount)
 
+            let restartDeadInstances =
+                async {
+                    while true do
+                        do! Async.Sleep 5000
+                        let living = d.GetAllNodes() |> List.length
+                        d.info "%d instances living" living
+
+                        let missing = 6 - living
+                        if missing > 0 then
+                            d.info "restarting %d instances" missing
+                            let! handles = pool.StartChainAsync missing
+                            for h in handles do
+                                mapping := Map.add h.privateAddress h.publicAddress !mapping
+                        else
+                            ()
+
+                }
+
+            restartDeadInstances |> Async.StartAsTask |> ignore
+
             let mutable running = true
             while running do
                 printf "dir# "
                 let line = Console.ReadLine()
 
                 match line with
+                    | "!kill" -> ()
                     | "!shutdown" ->
                         chainNodeHandles |> List.iter(fun c -> c.shutdown() |> Async.RunSynchronously) 
 
@@ -102,9 +120,44 @@ let main args =
 
             0
 
+        | [|"service"; port|] ->
+
+            let quotes =
+                [|
+                    "You know nothing, Jon Snow!"
+                    "Brace yourself! Winter is coming!"
+                    "When you play the game of thrones, you win or you die."
+                    "Fear cuts deeper than swords."
+                    "What do we say to the Lord of Death? - Not today."
+                    "Noseless and Handless, the Lannister Boys."
+                    "The North remembers."
+                    "A Lannister always pays his debts."
+                    "The man who passes the sentence should swing the sword."
+                    "A dragon is not a slave."
+                |]
+
+            let r = System.Random()
+
+            let pages =
+                Map.ofList [
+                    "/", fun _ ->
+                        let id = r.Next(quotes.Length)
+                        let q = quotes.[id]
+                        q
+                ]
+            let s = HttpServer(System.Int32.Parse port, pages)
+
+            s.Run()
+
+            0
+            
+
         | [|"client"; directory; directoryPort|] ->
             let c = Client(directory, Int32.Parse directoryPort)
             let mutable running = true
+
+            ClientMonitor.run 8080 c "http://localhost:1234/"
+
 
             while running do
                 printf "client# "
@@ -118,24 +171,24 @@ let main args =
                         printfn "%A" <| c.Connect(3)
 
                     | "!google" ->
-                        c.Send(Request("http://www.orf.at", 0, null))
-
-                        let data = c.Receive() |> Async.RunSynchronously
+                        let data = c.Request(Request("http://www.orf.at", 0, null)) |> Async.RunSynchronously
 
                         match data with
                             | Data content ->
                                 printfn "got:\r\n\r\n%s" (System.Text.ASCIIEncoding.UTF8.GetString content)
+                            | Exception e->
+                                printfn "ERROR: %A" e
                             | _ ->
                                 ()
 
                     | "!qod" ->
-                        c.Send(Request("http://api.theysaidso.com/qod.json", 0, null))
-
-                        let data = c.Receive() |> Async.RunSynchronously
+                        let data = c.Request(Request("http://localhost:1234/", 0, null)) |> Async.RunSynchronously
 
                         match data with
                             | Data content ->
                                 printfn "got:\r\n\r\n%s" (System.Text.ASCIIEncoding.UTF8.GetString content)
+                            | Exception err ->
+                                printfn "ERROR: %A" err
                             | _ ->
                                 ()           
                          

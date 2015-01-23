@@ -76,7 +76,7 @@ type Directory(port : int, pingPort : int, remapAddress : string -> string) =
 
             let age = DateTime.Now - time
 
-            if age.TotalSeconds > 60.0 then
+            if age.TotalSeconds > 4.0 then
                 remove <- k::remove
             else
                 result <- (address, port, key, useCount)::result
@@ -174,12 +174,18 @@ type Directory(port : int, pingPort : int, remapAddress : string -> string) =
         }
     
 
+    member x.info fmt =
+        Log.info fmt
+
     member x.WaitForChainNodes (count : int) =
         Log.info "waiting for %d chain nodes to come up" count
         while content.Count < count do
             Thread.Sleep(200)
 
         Log.info "finished waiting for chain nodes"
+
+    member x.GetAllNodes() =
+        getAllRelays()
 
     member x.PrintChainNodes() =
         for (KeyValue((address, port),(key, last, useCount))) in content do

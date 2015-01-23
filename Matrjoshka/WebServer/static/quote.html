@@ -5,13 +5,71 @@
         <link rel="stylesheet" href="bootstrap/css/bootstrap.min.css" />
         <link rel="stylesheet" href="bootstrap/css/bootstrap-theme.min.css" />
         <link rel="stylesheet" href="css/main.css" />
+        <script type="text/javascript" src="http://code.jquery.com/jquery-1.11.2.min.js"></script>
         <script type="text/javascript" src="bootstrap/js/bootstrap.min.js"></script>
+        <!--<script type="text/javascript" src="http://code.jquery.com/jquery-1.11.2.min.js"></script>-->
+        
+        <script type="text/javascript">
+            var isConnected = false;
+            
+            function getNewChainIPs() {
+                $.get( "/chain?id=0" , function( data ) {
+                    $("#chain0").html(data);
+                });
+                
+                $.get( "/chain?id=1" , function( data ) {
+                    $("#chain1").html(data);
+                });
+                
+                $.get( "/chain?id=2" , function( data ) {
+                    $("#chain2").html(data);
+                });
+            }
+            
+            function rebuildChain() {
+                $.get( "/connect" , function( data ) {
+                    var result = $.parseJSON(data);
+                    if(result.status == 1) {
+                        isConnected = true;
+                        getNewChainIPs();
+                    }
+                    else {
+                        isConnected = false;
+                        alert("Could not establish chain: " + result.error);
+                    }
+                });
+            }
+            
+            function getQuote() {
+                if(!isConnected) {
+                    alert("You must first establish a chain");
+                }
+                else{
+                    $.get( "/qod" , function( data ) {
+                        var result = $.parseJSON(data);
+                        if(result.status == 1) {
+                            $("#quote").html(result.quote + "<br><code>" + result.time + "ms</code>");
+                        }
+                        else {
+                            alert("ERROR: " + result.error);
+                        }
+                    });
+                }
+            }
+            
+            
+            $( document ).ready(function () {
+                getNewChainIPs();
+            });
+        </script>
+        
     </head>
     <body>
         <div class="container">
             <h1><img src="img/logo.png" /> Matrjoshka Routing <img src="img/logo.png" /></h1>
-            <a href="/quote" class="btn btn-xlg btn-primary">Get Quote!</a>
-            <div class="routing"><img src="img/southpark-matrjoshka.gif" /></div>
+            <button class="btn btn-xlg btn-primary" onclick="getQuote()">Get Quote!</button>
+            <button class="btn btn-xlg btn-primary" onclick="rebuildChain()">Build New Chain</button>
+            <div id="gif" class="routing"><img src="img/southpark-matrjoshka.gif" /></div>
             <div class="entities">
                 <div class="col-sm-3">
                     <img src="img/computer_kenny.png" />
@@ -20,17 +78,17 @@
                 <div class="col-sm-2">
                     <img src="img/server_cartman.png" />
                     <p>Chain 1</p>
-                    <p class="ip">{xx.xx.xx.xx}</p>
+                    <div class="ip" id="chain0">{xx.xx.xx.xx}</div>
                 </div>
                 <div class="col-sm-2">
                     <img src="img/server_kyle.png" />
                     <p>Chain 2</p>
-                    <p class="ip">{xx.xx.xx.xx}</p>
+                    <div class="ip" id="chain1">{xx.xx.xx.xx}</div>
                 </div>
                 <div class="col-sm-2">
                     <img src="img/server_stan.png" />
                     <p>Chain 3</p>
-                    <p class="ip">{xx.xx.xx.xx}</p>
+                    <div class="ip" id="chain2">{xx.xx.xx.xx}</div>
                 </div>
                 <div class="col-sm-3">
                     <img src="img/server.png" />
@@ -39,7 +97,7 @@
             </div>
             <div class="quote">
                 <h2>Your Quote:</h2>
-                <p class="quote-text">{Here is my quote.}</p>
+                <p class="quote-text" id="quote">{Here is my quote.}</p>
             </div>
         </div>
     </body>

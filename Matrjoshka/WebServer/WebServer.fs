@@ -5,11 +5,11 @@ open System.Net
 open System.Threading
 open System.Threading.Tasks
 
-type HttpServer(port : int, pages : Map<string, HttpListenerRequest -> string>, ?defaultPage : string) =
+type HttpServer(port : int, pages : Map<string, HttpListenerRequest -> string>, ?directory : string) =
     let listener = new System.Net.HttpListener()
     let cancel = new CancellationTokenSource()
     let Log = Logging.logger (sprintf "http:%d" port)
-    let defaultPage = defaultArg defaultPage "<html><head><title>Not Found</title></head><body><h1>not found</h1></body></html>"
+    let defaultPage = "<html><head><title>Not Found</title></head><body><h1>not found</h1></body></html>"
 
     do
         listener.Prefixes.Add ("http://localhost:" + string port + "/")
@@ -31,7 +31,33 @@ type HttpServer(port : int, pages : Map<string, HttpListenerRequest -> string>, 
                             c.Response.ContentType <- "text/html"
                             c.Response.StatusCode <- 200
                         | _ ->
-                            c.Response.StatusCode <- 404
+                            match directory with
+                                | Some directory ->
+                                    let path = c.Request.Url.LocalPath.Replace('/', System.IO.Path.DirectorySeparatorChar)
+
+                                    let path =
+                                        if path.[0] = System.IO.Path.DirectorySeparatorChar then path.Substring 1
+                                        else path
+
+                                    let path = System.IO.Path.Combine(directory, path)
+                                    //printfn "looking up: %A" path
+
+                                    let probes =
+                                        [path; System.IO.Path.ChangeExtension(path, ".html"); System.IO.Path.ChangeExtension(path, ".htm")]
+
+                                    let path = probes |> List.tryFind System.IO.File.Exists
+                                    match path with
+                                        | Some path ->
+                                            let mime = System.Web.MimeMapping.GetMimeMapping(path)
+                                            let bytes = System.IO.File.ReadAllBytes(path)
+                                            c.Response.ContentLength64 <- bytes.LongLength
+                                            c.Response.OutputStream.Write(bytes, 0, bytes.Length)
+                                            c.Response.ContentType <- mime
+                                            c.Response.StatusCode <- 200
+                                        | _ ->
+                                            c.Response.StatusCode <- 404
+                                | _ ->
+                                    c.Response.StatusCode <- 404
                 with 
                     | :? OperationCanceledException -> () //shutdown
                     | e -> Log.error "%A" e
@@ -62,49 +88,53 @@ module HttpRequestExtensions =
                 Some elements
 
 
-module WebServerTest =
-    let mainPage (r : HttpListenerRequest) =
-        @"<html>
-            <head>
-                <title>Index</title>
-            </head>
-            <body>
-                <h1>Index</h1>
-                Some Text
-            </body>
-          </html>"
-
-    let test (r : HttpListenerRequest) =
-        let id = r.QueryString.TryGet "id"
-        match id with
-            | Some id ->
-                @"<html>
-                    <head>
-                        <title>Index</title>
-                    </head>
-                    <body>
-                        <h1>Your Query was:</h1>" + (sprintf "%A" id) +
-                @"
-                    </body>
-                  </html>"
-            | None ->
-                @"<html>
-                    <head>
-                        <title>Index</title>
-                    </head>
-                    <body>
-                        <h1>Please enter a query</h1>
-                    </body>
-                  </html>"
-
-    let run() =
+module ClientMonitor =
+    let run (port : int) (c : Client) (serviceAddress : string) =
 
         let pages =
             Map.ofList [
-                "/", mainPage
-                "/test", test
-            ]
-        let s = HttpServer(8080, pages)
+                "/chain", fun (r : HttpListenerRequest) ->
+                    let id = r.QueryString.TryGet "id"
+                    match id with
+                        | Some [id] ->
+                            
+                            match c.TryGetChainIP (System.Int32.Parse id) with
+                                | Some (ip, _) -> sprintf "%s" ip
+                                | None ->
+                                    "xxx.xxx.xxx.xxx"
 
-        s.Run()
-        System.Environment.Exit(0)
+                        | _ ->
+                            "xxx.xxx.xxx.xxx"
+
+                "/connect", fun (r : HttpListenerRequest) ->
+                    let sw = System.Diagnostics.Stopwatch()
+                    sw.Start()
+                    match c.Connect(3) with
+                        | Success() -> 
+                            sw.Stop()
+                            sprintf "{ \"status\" : 1, \"took\": \"%fm\" }" sw.Elapsed.TotalMilliseconds
+                        | Error e -> 
+                            sw.Stop()
+                            sprintf "{ \"status\" : 0, \"error\": \"%s\" }" e
+
+                "/qod", fun (r : HttpListenerRequest) ->
+                    try
+                        let sw = System.Diagnostics.Stopwatch()
+                        sw.Start()
+                        let data = c.Request(Request(serviceAddress, 0, null)) |> Async.RunSynchronously
+                        sw.Stop()
+
+                        match data with
+                            | Data content ->
+                                let quote = System.Text.ASCIIEncoding.UTF8.GetString content
+                                sprintf "{ \"status\" : 1, \"quote\": \"%s\", \"time\": %f }"  quote sw.Elapsed.TotalMilliseconds
+                            | _ ->
+                                sprintf "{ \"status\" : 0, \"error\": \"Invalid Response\" }"
+                    with e ->
+                        sprintf "{ \"status\" : 0, \"error\": \"%s\" }" e.Message
+            ]
+
+        let s = HttpServer(port, pages, @"E:\Development\Matrjoshka\Matrjoshka\WebServer\static")
+
+        s.Start() //Run()
+        //System.Environment.Exit(0)

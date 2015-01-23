@@ -16,22 +16,26 @@ type Client(directory : string, port : int) =
 
     let reader = new StreamReader(stream)
     let writer = new StreamWriter(stream)
+    let mutable currentChain = [||]
 
     let getChain(req: int->DirectoryRequest, l:int) =
         let r = req l
         let data = pickler.Pickle r
         let str = Convert.ToBase64String data
-        writer.WriteLine str
-        writer.Flush()
+        try
+            writer.WriteLine str
+            writer.Flush()
 
-        let reply = reader.ReadLine()
-        let reply = Convert.FromBase64String reply
+            let reply = reader.ReadLine()
+            let reply = Convert.FromBase64String reply
 
-        match pickler.UnPickle reply with
-            | Nodes list ->
-                list
-            | InsufficientRelays available ->
-                failwithf "could not get chain of length %d (%d relays available)" l available
+            match pickler.UnPickle reply with
+                | Nodes list ->
+                    list
+                | InsufficientRelays available ->
+                    []
+        with _ ->
+            []
 
     let getNewChain(l: int) =
         getChain (DirectoryRequest.Chain, l)
@@ -49,7 +53,7 @@ type Client(directory : string, port : int) =
 
                 let sec = SecureSocket(plain)
                 match sec.Connect key with
-                    | Success -> Choice1Of2 sec
+                    | Success() -> Choice1Of2 sec
                     | Error e -> Choice2Of2 e
 
             | (remote, port, key, useCount)::rest ->
@@ -60,7 +64,7 @@ type Client(directory : string, port : int) =
 
                         let sec = SecureSocket(fw)
                         match sec.Connect key with
-                            | Success -> Choice1Of2 sec
+                            | Success() -> Choice1Of2 sec
                             | Error e -> Choice2Of2 e
 
             | [] ->
@@ -69,6 +73,13 @@ type Client(directory : string, port : int) =
     let mutable client : Option<SecureSocket> = None
 
 
+    member x.TryGetChainIP(index : int) =
+        if currentChain.Length > index && index >= 0 then
+            let (ip, port, _,_) = currentChain.[index]
+            Some (ip, port)
+        else 
+            None
+
     member x.GetNewChain(count: int) =
         getNewChain count
 
@@ -76,7 +87,7 @@ type Client(directory : string, port : int) =
         getRandomChain count
 
     member x.Connect(chain : list<string * int * RsaPublicKey * int>) =
-
+        currentChain <- chain |> List.toArray
         match builChain (List.rev chain) with
             | Choice1Of2 newClient ->
                 
@@ -86,13 +97,17 @@ type Client(directory : string, port : int) =
                 
                 client <- Some newClient
 
-                Success
+                Success()
             | Choice2Of2 e ->
                 Error e
 
     member x.Connect(count : int) =
         let c = x.GetNewChain(count)
-        x.Connect c
+        if List.isEmpty c then
+            Error "could not get chain from directory"
+        else
+            x.Connect c
+
 
     member x.Disconnect() =
         match client with
@@ -111,23 +126,23 @@ type Client(directory : string, port : int) =
             | Some c -> c.Send m
             | None -> failwith "originator not connected"
 
-    member x.Receive() =
-        match client with
-            | Some c -> c.Receive()
-            | None -> failwith "originator not connected"
-
-    member x.Request(m : 'a) =
-        match client with
-            | Some c -> c.Request m
-            | None -> failwith "originator not connected"
+    member x.Request(m : 'a) : Async<Response> =
+        async {
+            match client with
+                | Some c -> 
+                    let! res = c.Request m
+                    match res with
+                        | Response.Exception e ->
+                            match x.Connect(3) with
+                                | Success() -> return! x.Request(m)
+                                | Error e -> return Response.Exception e
+                        | res ->
+                            return res
+                | None -> 
+                    return Response.Exception "originator not connected"
+        }
 
     member x.IsConnected =
         client.IsSome
 
-    interface ISocket with
-        member x.IsConnected = x.IsConnected
-        member x.Disconnect() = x.Disconnect()
-        member x.Send v = x.Send v
-        member x.Receive() = x.Receive()
-        member x.Request r = x.Request r
 

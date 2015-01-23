@@ -40,7 +40,10 @@ type SecureSocket(client : ISocket) =
             match aes with
                 | Some aes ->
                     let! arr = client.Receive()
-                    let arr = Aes.decrypt aes arr
+          
+                    let arr = 
+                        try Aes.decrypt aes arr
+                        with _ -> arr
 
                     if typeof<'a> = typeof<byte[]> then
                         return arr :> obj |> unbox
@@ -92,7 +95,7 @@ type SecureSocket(client : ISocket) =
                         // we can safely establish a AES connection
                 
                         aes <- Some (Aes.create aesKey iv)
-                        Success
+                        Success()
                 
                 | Data _ ->
                     Error "server responded with data (expected Accept/Deny)"

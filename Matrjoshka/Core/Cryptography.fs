@@ -1,5 +1,6 @@
 ﻿namespace Matrjoshka.Cryptography
 
+
 open System
 open System.Net
 open System.IO
@@ -19,9 +20,16 @@ open Mono.Security.Cryptography
 type DiffieHellmanPublicKey = byte[]
 type RsaPublicKey = byte[]
 
+#if WINDOWS
+type RSAManaged = System.Security.Cryptography.RSACryptoServiceProvider
+type DiffieHellmanManaged = System.Security.Cryptography.ECDiffieHellmanCng
+#endif
+
 type Rsa = private { rsa : RSAManaged; canEncrypt : bool; canDecrypt : bool }
 type Aes = private { aes : AesManaged }
 type DiffieHellman = private { mutable dh : DiffieHellmanManaged }
+
+
 
 
 [<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
@@ -30,20 +38,27 @@ module DiffieHellman =
     type Handshake = { g : byte[]; p : byte[]; exchange : byte[] }
 
     let create() =
-        { dh = new DiffieHellmanManaged() }
+        { dh = new System.Security.Cryptography.ECDiffieHellmanCng(521) }
 
     let publicKey (dh : DiffieHellman) =
         //let exchange = dh.dh.CreateKeyExchange()
         //let parameters = dh.dh.ExportParameters(false)
         //let handshake = { g = parameters.G; p = parameters.P; exchange = exchange }
         //pickler.Pickle(handshake)
-
+        #if WINDOWS
+        dh.dh.PublicKey.ToByteArray()
+        #else
         dh.dh.CreateKeyExchange()
+        #endif
 
     let deriveKey (dh : DiffieHellman) (publicKey : byte[]) =
         //let handshake : Handshake = pickler.UnPickle(publicKey)
         //dh.dh.ImportParameters(DHParameters(G = handshake.g, P = handshake.p))
+        #if WINDOWS
+        dh.dh.DeriveKeyMaterial(ECDiffieHellmanCngPublicKey.FromByteArray(publicKey, CngKeyBlobFormat.GenericPublicBlob))
+        #else
         dh.dh.DecryptKeyExchange(publicKey)
+        #endif
         //let key = ECDiffieHellmanCngPublicKey.FromByteArray(publicKey, CngKeyBlobFormat.GenericPublicBlob)
         //dh.dh.DeriveKeyMaterial(key)
 
@@ -78,14 +93,22 @@ module Rsa =
     let encrypt (rsa : Rsa) (data : byte[]) =
         //data
         if rsa.canEncrypt then
+            #if WINDOWS
+            rsa.rsa.Encrypt(data, false)
+            #else
             rsa.rsa.EncryptValue(data)
+            #endif
         else
             failwith "cannot encrypt since Rsa does not posess the public key"
 
     let decrypt (rsa : Rsa) (data : byte[]) =
         //data
-        if rsa.canDecrypt then
+        if rsa.canDecrypt then  
+            #if WINDOWS
+            rsa.rsa.Decrypt(data, false)
+            #else
             rsa.rsa.DecryptValue(data)
+            #endif
         else
             failwith "cannot decrypt since Rsa does not posess the private key"
 

@@ -2,8 +2,8 @@
 
 open System
 
-
-type Error<'a> = Success of 'a | Error of string
+//
+//type Error<'a> = Success of 'a | Error of string
 
 type ChainNodeHandle = { privateAddress : string; publicAddress : string; port : int; shutdown : unit -> Async<unit> }
 
