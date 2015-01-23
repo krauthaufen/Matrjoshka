@@ -40,7 +40,10 @@ type SecureSocket(client : ISocket) =
             match aes with
                 | Some aes ->
                     let! arr = client.Receive()
-                    let arr = Aes.decrypt aes arr
+          
+                    let arr = 
+                        try Aes.decrypt aes arr
+                        with _ -> arr
 
                     if typeof<'a> = typeof<byte[]> then
                         return arr :> obj |> unbox

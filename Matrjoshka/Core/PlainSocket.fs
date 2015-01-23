@@ -28,35 +28,47 @@ type PlainSocket() =
                     | :? array<byte> as data -> data
                     | _ -> pickler.Pickle(data)
 
-            // send a base64 representation of the data
-            writer.WriteLine(Convert.ToBase64String(arr))
-            writer.Flush()
+            try
+                // send a base64 representation of the data
+                writer.WriteLine(Convert.ToBase64String(arr))
+                writer.Flush()
+            with _ ->
+                ()
         else
             failwith "client disconnected"
 
     let receiveAsync() : Async<'a> =
         if client <> null then
             async {
-                // read a base64 string from the input
-                let! line = Async.AwaitTask <| reader.ReadLineAsync()
+                try
+                    // read a base64 string from the input
+                    let! line = Async.AwaitTask <| reader.ReadLineAsync()
 
-                if line = null then
+                    if line = null then
+                        if typeof<'a> = typeof<Response> then
+                            return Response.Exception "remote closed the connection" :> obj |> unbox
+                        elif typeof<'a> = typeof<byte[]> then
+                            let arr = pickler.Pickle (Response.Exception "remote closed the connection")
+                            return arr :> obj |> unbox
+                        else
+                            return failwith "remote closed the connection"
+                    else
+                        // convert it to a byte[]
+                        let arr = Convert.FromBase64String(line)
+
+                        // deserialize the data (if not wanting a byte[])
+                        if typeof<'a> = typeof<byte[]> then
+                            return arr :> obj |> unbox
+                        else
+                            return pickler.UnPickle arr
+                with e ->
                     if typeof<'a> = typeof<Response> then
-                        return Exception "remote closed the connection" :> obj |> unbox
+                        return Response.Exception "remote closed the connection" :> obj |> unbox
                     elif typeof<'a> = typeof<byte[]> then
-                        let arr = pickler.Pickle (Exception "remote closed the connection")
+                        let arr = pickler.Pickle (Response.Exception "remote closed the connection")
                         return arr :> obj |> unbox
                     else
                         return failwith "remote closed the connection"
-                else
-                    // convert it to a byte[]
-                    let arr = Convert.FromBase64String(line)
-
-                    // deserialize the data (if not wanting a byte[])
-                    if typeof<'a> = typeof<byte[]> then
-                        return arr :> obj |> unbox
-                    else
-                        return pickler.UnPickle arr
             }
         else
             failwith "client disconnected"
@@ -97,6 +109,7 @@ type PlainSocket() =
     member x.Request(request : 'a) : Async<'b> =
         send request
         receiveAsync()
+
 
     interface ISocket with
         member x.IsConnected = client <> null && client.Connected

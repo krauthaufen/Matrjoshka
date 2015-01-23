@@ -33,9 +33,7 @@ let usage() =
 
 [<EntryPoint>]
 let main args =
-    // uncomment the following to start a very basic
-    // webserver at port 8080
-    
+
     match args with
         | [|"chain"; directory; listenPort|] ->
             let c = Relay(directory, directoryPingPort, "chain", Int32.Parse listenPort)
@@ -84,6 +82,7 @@ let main args =
                 let line = Console.ReadLine()
 
                 match line with
+                    | "!kill" -> ()
                     | "!shutdown" ->
                         chainNodeHandles |> List.iter(fun c -> c.shutdown() |> Async.RunSynchronously) 
 
@@ -152,24 +151,24 @@ let main args =
                         printfn "%A" <| c.Connect(3)
 
                     | "!google" ->
-                        c.Send(Request("http://www.orf.at", 0, null))
-
-                        let data = c.Receive() |> Async.RunSynchronously
+                        let data = c.Request(Request("http://www.orf.at", 0, null)) |> Async.RunSynchronously
 
                         match data with
                             | Data content ->
                                 printfn "got:\r\n\r\n%s" (System.Text.ASCIIEncoding.UTF8.GetString content)
+                            | Exception e->
+                                printfn "ERROR: %A" e
                             | _ ->
                                 ()
 
                     | "!qod" ->
-                        c.Send(Request("http://localhost:1234/", 0, null))
-
-                        let data = c.Receive() |> Async.RunSynchronously
+                        let data = c.Request(Request("http://localhost:1234/", 0, null)) |> Async.RunSynchronously
 
                         match data with
                             | Data content ->
                                 printfn "got:\r\n\r\n%s" (System.Text.ASCIIEncoding.UTF8.GetString content)
+                            | Exception err ->
+                                printfn "ERROR: %A" err
                             | _ ->
                                 ()           
                          

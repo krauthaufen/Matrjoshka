@@ -46,7 +46,13 @@
                 }
                 else{
                     $.get( "/qod" , function( data ) {
-                        $("#quote").html(data);
+                        var result = $.parseJSON(data);
+                        if(result.status == 1) {
+                            $("#quote").html(result.quote + "<br><code>" + result.time + "ms</code>");
+                        }
+                        else {
+                            alert("ERROR: " + result.error);
+                        }
                     });
                 }
             }

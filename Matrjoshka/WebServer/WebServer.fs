@@ -119,11 +119,15 @@ module ClientMonitor =
 
                 "/qod", fun (r : HttpListenerRequest) ->
                     try
-                        c.Send(Request("http://localhost:1234/", 0, null))
-                        let data = c.Receive() |> Async.RunSynchronously
+                        let sw = System.Diagnostics.Stopwatch()
+                        sw.Start()
+                        let data = c.Request(Request("http://localhost:1234/", 0, null)) |> Async.RunSynchronously
+                        sw.Stop()
+
                         match data with
                             | Data content ->
-                                System.Text.ASCIIEncoding.UTF8.GetString content
+                                let quote = System.Text.ASCIIEncoding.UTF8.GetString content
+                                sprintf "{ \"status\" : 1, \"quote\": \"%s\", \"time\": %f }"  quote sw.Elapsed.TotalMilliseconds
                             | _ ->
                                 sprintf "{ \"status\" : 0, \"error\": \"Invalid Response\" }"
                     with e ->
