@@ -79,10 +79,10 @@
     <Compile Include="Core\PlainSocket.fs" />
     <Compile Include="Core\SecureSocket.fs" />
     <Compile Include="Core\ForwardSocket.fs" />
+    <Compile Include="Core\ChainPool.fs" />
     <Compile Include="Relay\Relays.fs" />
     <Compile Include="Directory\Directory.fs" />
     <Compile Include="Client\Client.fs" />
-    <Compile Include="Virtualization\ChainPool.fs" />
     <Compile Include="Virtualization\EC2.fs" />
     <Compile Include="Virtualization\Simulation.fs" />
     <Compile Include="WebServer\WebServer.fs" />

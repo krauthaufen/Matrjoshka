@@ -12,7 +12,7 @@ open System.Security.Cryptography
 open Matrjoshka
 open Matrjoshka.Cryptography
 
-let chainNodeCount = 5
+let chainNodeCount = 6
 let chainNodeBasePort = 9985
 let directoryPingPort = 9980
 
@@ -63,11 +63,11 @@ let main args =
             let pool = Sim.createChainPool 12345 directoryPingPort
 
             let chainNodeHandles = pool.StartChainAsync chainNodeCount |> Async.RunSynchronously
+            let mapping = ref (chainNodeHandles |> List.map (fun h -> h.privateAddress, h.publicAddress) |> Map.ofList)
 
-            let mapping = chainNodeHandles |> List.map (fun h -> h.privateAddress, h.publicAddress) |> Map.ofList
 
             let remapName (name : string) =
-                match Map.tryFind name mapping with
+                match Map.tryFind name !mapping with
                     | Some i -> i
                     | None -> name
 
@@ -75,6 +75,26 @@ let main args =
             d.Start()
             
             d.WaitForChainNodes(chainNodeCount)
+
+            let restartDeadInstances =
+                async {
+                    while true do
+                        do! Async.Sleep 5000
+                        let living = d.GetAllNodes() |> List.length
+                        d.info "%d instances living" living
+
+                        let missing = 6 - living
+                        if missing > 0 then
+                            d.info "restarting %d instances" missing
+                            let! handles = pool.StartChainAsync missing
+                            for h in handles do
+                                mapping := Map.add h.privateAddress h.publicAddress !mapping
+                        else
+                            ()
+
+                }
+
+            restartDeadInstances |> Async.StartAsTask |> ignore
 
             let mutable running = true
             while running do
@@ -136,7 +156,7 @@ let main args =
             let c = Client(directory, Int32.Parse directoryPort)
             let mutable running = true
 
-            ClientMonitor.run 8080 c
+            ClientMonitor.run 8080 c "http://localhost:1234/"
 
 
             while running do

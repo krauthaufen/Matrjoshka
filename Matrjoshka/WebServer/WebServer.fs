@@ -89,7 +89,7 @@ module HttpRequestExtensions =
 
 
 module ClientMonitor =
-    let run (port : int) (c : Client) =
+    let run (port : int) (c : Client) (serviceAddress : string) =
 
         let pages =
             Map.ofList [
@@ -121,7 +121,7 @@ module ClientMonitor =
                     try
                         let sw = System.Diagnostics.Stopwatch()
                         sw.Start()
-                        let data = c.Request(Request("http://localhost:1234/", 0, null)) |> Async.RunSynchronously
+                        let data = c.Request(Request(serviceAddress, 0, null)) |> Async.RunSynchronously
                         sw.Stop()
 
                         match data with
