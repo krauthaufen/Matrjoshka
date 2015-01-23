@@ -35,8 +35,7 @@ let usage() =
 let main args =
     // uncomment the following to start a very basic
     // webserver at port 8080
-    //WebServerTest.run()
-
+    
     match args with
         | [|"chain"; directory; listenPort|] ->
             let c = Relay(directory, directoryPingPort, "chain", Int32.Parse listenPort)
@@ -105,6 +104,9 @@ let main args =
         | [|"client"; directory; directoryPort|] ->
             let c = Client(directory, Int32.Parse directoryPort)
             let mutable running = true
+
+            ClientMonitor.run 8080 c
+
 
             while running do
                 printf "client# "

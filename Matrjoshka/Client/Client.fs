@@ -16,6 +16,7 @@ type Client(directory : string, port : int) =
 
     let reader = new StreamReader(stream)
     let writer = new StreamWriter(stream)
+    let mutable currentChain = [||]
 
     let getChain(req: int->DirectoryRequest, l:int) =
         let r = req l
@@ -49,7 +50,7 @@ type Client(directory : string, port : int) =
 
                 let sec = SecureSocket(plain)
                 match sec.Connect key with
-                    | Success -> Choice1Of2 sec
+                    | Success() -> Choice1Of2 sec
                     | Error e -> Choice2Of2 e
 
             | (remote, port, key, useCount)::rest ->
@@ -60,7 +61,7 @@ type Client(directory : string, port : int) =
 
                         let sec = SecureSocket(fw)
                         match sec.Connect key with
-                            | Success -> Choice1Of2 sec
+                            | Success() -> Choice1Of2 sec
                             | Error e -> Choice2Of2 e
 
             | [] ->
@@ -69,6 +70,13 @@ type Client(directory : string, port : int) =
     let mutable client : Option<SecureSocket> = None
 
 
+    member x.TryGetChainIP(index : int) =
+        if currentChain.Length > index && index >= 0 then
+            let (ip, port, _,_) = currentChain.[index]
+            Some (ip, port)
+        else 
+            None
+
     member x.GetNewChain(count: int) =
         getNewChain count
 
@@ -76,7 +84,7 @@ type Client(directory : string, port : int) =
         getRandomChain count
 
     member x.Connect(chain : list<string * int * RsaPublicKey * int>) =
-
+        currentChain <- chain |> List.toArray
         match builChain (List.rev chain) with
             | Choice1Of2 newClient ->
                 
@@ -86,7 +94,7 @@ type Client(directory : string, port : int) =
                 
                 client <- Some newClient
 
-                Success
+                Success()
             | Choice2Of2 e ->
                 Error e
 

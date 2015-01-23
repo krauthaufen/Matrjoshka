@@ -92,7 +92,7 @@ type SecureSocket(client : ISocket) =
                         // we can safely establish a AES connection
                 
                         aes <- Some (Aes.create aesKey iv)
-                        Success
+                        Success()
                 
                 | Data _ ->
                     Error "server responded with data (expected Accept/Deny)"
