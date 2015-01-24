@@ -19,14 +19,14 @@
     <Optimize>false</Optimize>
     <Tailcalls>false</Tailcalls>
     <OutputPath>..\build\Debug\</OutputPath>
-    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <DefineConstants>TRACE;DEBUG</DefineConstants>
     <WarningLevel>3</WarningLevel>
     <PlatformTarget>AnyCPU</PlatformTarget>
     <DocumentationFile>
     </DocumentationFile>
     <Prefer32Bit>true</Prefer32Bit>
     <UseVSHostingProcess>true</UseVSHostingProcess>
-    <StartArguments>client 54.72.135.139 9999</StartArguments>
+    <StartArguments>client localhost 9999</StartArguments>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <DebugType>pdbonly</DebugType>
@@ -39,7 +39,7 @@
     <DocumentationFile>
     </DocumentationFile>
     <Prefer32Bit>true</Prefer32Bit>
-    <StartArguments>client ec2-54-154-32-116.eu-west-1.compute.amazonaws.com 9999</StartArguments>
+    <StartArguments>client localhost 9999</StartArguments>
     <Commandlineparameters>directory 9999</Commandlineparameters>
   </PropertyGroup>
   <PropertyGroup>
@@ -79,14 +79,15 @@
     <Compile Include="Core\PlainSocket.fs" />
     <Compile Include="Core\SecureSocket.fs" />
     <Compile Include="Core\ForwardSocket.fs" />
+    <Compile Include="Core\ChainPool.fs" />
+    <Compile Include="Core\WebServer.fs" />
     <Compile Include="Relay\Relays.fs" />
     <Compile Include="Directory\Directory.fs" />
     <Compile Include="Client\Client.fs" />
-    <Compile Include="Virtualization\ChainPool.fs" />
+    <Compile Include="Service\Service.fs" />
     <Compile Include="Virtualization\EC2.fs" />
     <Compile Include="Virtualization\Simulation.fs" />
-    <Compile Include="WebServer.fs" />
-    <Compile Include="Tests.fs" />
+    <Compile Include="UI\ClientUI.fs" />
     <Compile Include="Program.fs" />
     <Content Include="packages.config" />
     <Content Include="app.config" />

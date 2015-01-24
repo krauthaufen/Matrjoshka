@@ -260,7 +260,7 @@ type Relay(directory : string, dirPort : int, name : string, port : int) =
             let data = pickler.Pickle msg
             udp.Send(data, data.Length, directory, dirPort) |> ignore
 
-        let interval = System.Random().Next(2000) + 4000
+        let interval = System.Random().Next(500) + 1000
         let t = new Timer(TimerCallback(callback), null, 0, interval)
         { new IDisposable with
             member x.Dispose() = 

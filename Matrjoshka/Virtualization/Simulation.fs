@@ -11,7 +11,7 @@ open System
 
 module Sim =
 
-    let createChainPool (basePort : int) (directoryPort : int) =
+    let createChainPool (basePort : int) (directoryPort : int) (servicePort : int) =
         let currentPort = ref basePort
 
         { new ChainPool() with
@@ -30,6 +30,13 @@ module Sim =
                         ]
 
                     return instances
+                }
+
+            member x.StartServiceAsync () =
+                async {
+                    let s = Service(servicePort)
+                    s.Start()
+                    return { privateAddress = "localhost"; publicAddress = "localhost"; port = servicePort; shutdown = fun () -> async { return () } }
                 }
 
             member x.Dispose() = ()        

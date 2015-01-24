@@ -6,7 +6,7 @@ open Matrjoshka.Cryptography
 /// Error is a simple union-type either being an error with
 /// a message or Success
 /// </summary>
-type Error = Success | Error of string
+type Error<'a> = Success of 'a | Error of string
 
 /// <summary>
 /// Message represents all message-types that can
@@ -40,7 +40,9 @@ type DirectoryRequest =
     | Random of int
     | Chain of int
     | All
+    | Service
     
 type DirectoryResponse =
     | Nodes of list<string * int * RsaPublicKey * int>
+    | Address of string * int
     | InsufficientRelays of int

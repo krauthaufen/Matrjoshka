@@ -12,9 +12,10 @@ open System.Security.Cryptography
 open Matrjoshka
 open Matrjoshka.Cryptography
 
-let chainNodeCount = 5
-let chainNodeBasePort = 9985
+let chainNodeCount = 6
+let chainNodeBasePort = 9984
 let directoryPingPort = 9980
+let servicePort = 9981
 
 let usage() =
     printfn "matrjoshka supports the following commands:"
@@ -33,11 +34,10 @@ let usage() =
 
 [<EntryPoint>]
 let main args =
-    // uncomment the following to start a very basic
-    // webserver at port 8080
-    //WebServerTest.run()
 
     match args with
+
+        //start a chain node
         | [|"chain"; directory; listenPort|] ->
             let c = Relay(directory, directoryPingPort, "chain", Int32.Parse listenPort)
             c.Start()
@@ -54,39 +54,71 @@ let main args =
 
             0
 
+        // start the directory node spawning its own chain nodes
         | [|"directory"; clientPort|] ->
 
             let port = Int32.Parse clientPort
 
-            let pool = 
-                match EC2.createChainPool "/home/ubuntu/cred.txt" chainNodeBasePort directoryPingPort with
-                    | Success pool -> pool
-                    | Error e -> 
-                        failwith e
-            //let pool = Sim.createChainPool 12345 directoryPingPort
 
-            let chainNodeHandles = pool.StartChainAsync chainNodeCount |> Async.RunSynchronously
+//            let pool = 
+//                match EC2.createChainPool "/home/ubuntu/cred.txt" chainNodeBasePort directoryPingPort with
+//                    | Success pool -> pool
+//                    | Error e -> 
+//                        failwith e
+            let pool = Sim.createChainPool 12345 directoryPingPort servicePort
 
-            let mapping = chainNodeHandles |> List.map (fun h -> h.privateAddress, h.publicAddress) |> Map.ofList
+
+            let serviceHandle = pool.StartServiceAsync() |> Async.RunSynchronously
 
             let remapName (name : string) =
-                match Map.tryFind name mapping with
+                match Map.tryFind name !mapping with
                     | Some i -> i
                     | None -> name
 
-            let d = Directory(port, directoryPingPort, remapName)
+            let d = Directory(port, directoryPingPort, remapName, serviceHandle.publicAddress, serviceHandle.port)
             d.Start()
             
             d.WaitForChainNodes(chainNodeCount)
 
+            let restartDeadInstances =
+                async {
+                    while true do
+                        do! Async.Sleep 5000
+                        let living = d.GetAllNodes() |> List.length
+
+                        if living < chainNodeCount then
+                            d.info "%d instances living" living
+
+                        let missing = chainNodeCount - living
+                        if missing > 0 then
+                            d.info "restarting %d instances" missing
+                            let! handles = pool.StartChainAsync missing
+                            for h in handles do
+                                mapping := Map.add h.privateAddress h.publicAddress !mapping
+                        else
+                            ()
+
+                }
+
+            restartDeadInstances |> Async.StartAsTask |> ignore
+
+            let rand = System.Random()
             let mutable running = true
             while running do
                 printf "dir# "
                 let line = Console.ReadLine()
 
                 match line with
+                    | "!kill" ->
+                        let id = rand.Next(chainNodeHandles.Length)
+
+                        let c = chainNodeHandles.[id]
+                        c.shutdown() |> Async.RunSynchronously
+
+
                     | "!shutdown" ->
-                        chainNodeHandles |> List.iter(fun c -> c.shutdown() |> Async.RunSynchronously) 
+                        chainNodeHandles |> Array.iter(fun c -> c.shutdown() |> Async.RunSynchronously) 
+                        serviceHandle.shutdown() |> Async.RunSynchronously
 
                         pool.Dispose()
                         d.Stop()
@@ -102,9 +134,22 @@ let main args =
 
             0
 
+
+        // start the service
+        | [|"service"; port|] ->
+
+            let s = Service(System.Int32.Parse port)
+            s.Run()
+            0
+            
+        // start the client
         | [|"client"; directory; directoryPort|] ->
             let c = Client(directory, Int32.Parse directoryPort)
             let mutable running = true
+
+            ClientUI.run 8080 c "http://localhost:1234/"
+
+            let (sa, sp) = c.GetServiceAddress().Value
 
             while running do
                 printf "client# "
@@ -118,24 +163,24 @@ let main args =
                         printfn "%A" <| c.Connect(3)
 
                     | "!google" ->
-                        c.Send(Request("http://www.orf.at", 0, null))
-
-                        let data = c.Receive() |> Async.RunSynchronously
+                        let data = c.Request(Request("http://www.orf.at", 0, null)) |> Async.RunSynchronously
 
                         match data with
                             | Data content ->
                                 printfn "got:\r\n\r\n%s" (System.Text.ASCIIEncoding.UTF8.GetString content)
+                            | Exception e->
+                                printfn "ERROR: %A" e
                             | _ ->
                                 ()
 
                     | "!qod" ->
-                        c.Send(Request("http://api.theysaidso.com/qod.json", 0, null))
-
-                        let data = c.Receive() |> Async.RunSynchronously
+                        let data = c.Request(Request(sprintf "http://%s:%d/" sa sp, 0, null)) |> Async.RunSynchronously
 
                         match data with
                             | Data content ->
                                 printfn "got:\r\n\r\n%s" (System.Text.ASCIIEncoding.UTF8.GetString content)
+                            | Exception err ->
+                                printfn "ERROR: %A" err
                             | _ ->
                                 ()           
                          
