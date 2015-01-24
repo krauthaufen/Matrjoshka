@@ -63,12 +63,12 @@ let main args =
             let port = Int32.Parse clientPort
 
 
-//            let pool = 
-//                match EC2.createChainPool "/home/ubuntu/cred.txt" chainNodeBasePort directoryPingPort servicePort with
-//                    | Success pool -> pool
-//                    | Error e -> 
-//                        failwith e
-            let pool = Sim.createChainPool 12345 directoryPingPort servicePort
+            let pool = 
+                match EC2.createChainPool "/home/ubuntu/cred.txt" chainNodeBasePort directoryPingPort servicePort with
+                    | Success pool -> pool
+                    | Error e -> 
+                        failwith e
+            //let pool = Sim.createChainPool 12345 directoryPingPort servicePort
 
             let chainNodeHandles = pool.StartChainAsync chainNodeCount |> Async.RunSynchronously |> List.toArray
             let mapping = ref (chainNodeHandles |> Array.map (fun h -> h.privateAddress, h.publicAddress) |> Map.ofArray)
