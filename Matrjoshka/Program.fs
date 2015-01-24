@@ -102,6 +102,7 @@ let main args =
                         do! Async.Sleep 10000
                         let living = d.GetAllNodes() |> List.length
                         let pendingCount = pending.Count
+                        d.info "running: %d / pending: %d" living pendingCount
 
                         if living + pendingCount < chainNodeCount then
                             d.info "%d instances living" living
