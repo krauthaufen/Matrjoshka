@@ -90,7 +90,7 @@ type NamedLogger(name : string, inner : ILogger) =
 
 type MonitorableHtmlLogger(port : int) =
     let builder = System.Text.StringBuilder()
-
+    let empty = System.Text.ASCIIEncoding.UTF8.GetBytes "not found"
 
     let template =
         """
@@ -189,9 +189,11 @@ type MonitorableHtmlLogger(port : int) =
                             c.Response.OutputStream.Write(bytes, 0, bytes.Length)
                             
                         | _ ->
-                            c.Response.ContentLength64 <-0L
-                            c.Response.OutputStream.Write([||], 0, 0)
                             c.Response.StatusCode <- 404
+
+                            c.Response.ContentLength64 <- empty.LongLength
+                            c.Response.OutputStream.Write(empty, 0, empty.Length)
+                            
 
             }
 
