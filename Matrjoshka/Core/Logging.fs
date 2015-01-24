@@ -182,11 +182,15 @@ type MonitorableHtmlLogger(port : int) =
 
 
                             let bytes = System.Text.ASCIIEncoding.UTF8.GetBytes(str)
-                            c.Response.ContentLength64 <- bytes.LongLength
-                            c.Response.OutputStream.Write(bytes, 0, bytes.Length)
                             c.Response.ContentType <- "text/html"
                             c.Response.StatusCode <- 200
+
+                            c.Response.ContentLength64 <- bytes.LongLength
+                            c.Response.OutputStream.Write(bytes, 0, bytes.Length)
+                            
                         | _ ->
+                            c.Response.ContentLength64 <-0L
+                            c.Response.OutputStream.Write([||], 0, 0)
                             c.Response.StatusCode <- 404
 
             }
