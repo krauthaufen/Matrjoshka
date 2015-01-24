@@ -8,7 +8,7 @@ open System.Net
 open System.Net.Sockets
 open Nessos.FsPickler
 
-type Directory(port : int, pingPort : int, remapAddress : string -> string) =
+type Directory(port : int, pingPort : int, remapAddress : string -> string, serviceAddress : string, servicePort : int) =
     static let pickler = FsPickler.CreateBinary(true)
     let pingListener = new UdpClient(pingPort)
     let listener = new TcpListener(IPAddress.Any, port)
@@ -110,6 +110,9 @@ type Directory(port : int, pingPort : int, remapAddress : string -> string) =
                     let reply =
                         match request with
                             | All -> Nodes all
+
+                            | Service ->
+                                Address(serviceAddress, servicePort)
 
                             | Random count ->
                                 let arr = all |> List.toArray

@@ -38,8 +38,11 @@ module DiffieHellman =
     type Handshake = { g : byte[]; p : byte[]; exchange : byte[] }
 
     let create() =
+        #if WINDOWS
         { dh = new System.Security.Cryptography.ECDiffieHellmanCng(521) }
-
+        #else
+        { dh = new DiffieHellmanManaged() }
+        #endif
     let publicKey (dh : DiffieHellman) =
         //let exchange = dh.dh.CreateKeyExchange()
         //let parameters = dh.dh.ExportParameters(false)

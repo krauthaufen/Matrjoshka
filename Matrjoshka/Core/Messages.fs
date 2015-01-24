@@ -40,7 +40,9 @@ type DirectoryRequest =
     | Random of int
     | Chain of int
     | All
+    | Service
     
 type DirectoryResponse =
     | Nodes of list<string * int * RsaPublicKey * int>
+    | Address of string * int
     | InsufficientRelays of int

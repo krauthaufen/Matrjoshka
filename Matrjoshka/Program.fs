@@ -13,8 +13,9 @@ open Matrjoshka
 open Matrjoshka.Cryptography
 
 let chainNodeCount = 6
-let chainNodeBasePort = 9985
+let chainNodeBasePort = 9984
 let directoryPingPort = 9980
+let servicePort = 9981
 
 let usage() =
     printfn "matrjoshka supports the following commands:"
@@ -35,6 +36,8 @@ let usage() =
 let main args =
 
     match args with
+
+        //start a chain node
         | [|"chain"; directory; listenPort|] ->
             let c = Relay(directory, directoryPingPort, "chain", Int32.Parse listenPort)
             c.Start()
@@ -51,27 +54,30 @@ let main args =
 
             0
 
+        // start the directory node spawning its own chain nodes
         | [|"directory"; clientPort|] ->
 
             let port = Int32.Parse clientPort
-//
+
+
 //            let pool = 
 //                match EC2.createChainPool "/home/ubuntu/cred.txt" chainNodeBasePort directoryPingPort with
 //                    | Success pool -> pool
 //                    | Error e -> 
 //                        failwith e
-            let pool = Sim.createChainPool 12345 directoryPingPort
+            let pool = Sim.createChainPool 12345 directoryPingPort servicePort
 
-            let chainNodeHandles = pool.StartChainAsync chainNodeCount |> Async.RunSynchronously
-            let mapping = ref (chainNodeHandles |> List.map (fun h -> h.privateAddress, h.publicAddress) |> Map.ofList)
+            let chainNodeHandles = pool.StartChainAsync chainNodeCount |> Async.RunSynchronously |> List.toArray
+            let mapping = ref (chainNodeHandles |> Array.map (fun h -> h.privateAddress, h.publicAddress) |> Map.ofArray)
 
+            let serviceHandle = pool.StartServiceAsync() |> Async.RunSynchronously
 
             let remapName (name : string) =
                 match Map.tryFind name !mapping with
                     | Some i -> i
                     | None -> name
 
-            let d = Directory(port, directoryPingPort, remapName)
+            let d = Directory(port, directoryPingPort, remapName, serviceHandle.publicAddress, serviceHandle.port)
             d.Start()
             
             d.WaitForChainNodes(chainNodeCount)
@@ -81,9 +87,11 @@ let main args =
                     while true do
                         do! Async.Sleep 5000
                         let living = d.GetAllNodes() |> List.length
-                        d.info "%d instances living" living
 
-                        let missing = 6 - living
+                        if living < chainNodeCount then
+                            d.info "%d instances living" living
+
+                        let missing = chainNodeCount - living
                         if missing > 0 then
                             d.info "restarting %d instances" missing
                             let! handles = pool.StartChainAsync missing
@@ -96,15 +104,23 @@ let main args =
 
             restartDeadInstances |> Async.StartAsTask |> ignore
 
+            let rand = System.Random()
             let mutable running = true
             while running do
                 printf "dir# "
                 let line = Console.ReadLine()
 
                 match line with
-                    | "!kill" -> ()
+                    | "!kill" ->
+                        let id = rand.Next(chainNodeHandles.Length)
+
+                        let c = chainNodeHandles.[id]
+                        c.shutdown() |> Async.RunSynchronously
+
+
                     | "!shutdown" ->
-                        chainNodeHandles |> List.iter(fun c -> c.shutdown() |> Async.RunSynchronously) 
+                        chainNodeHandles |> Array.iter(fun c -> c.shutdown() |> Async.RunSynchronously) 
+                        serviceHandle.shutdown() |> Async.RunSynchronously
 
                         pool.Dispose()
                         d.Stop()
@@ -120,44 +136,22 @@ let main args =
 
             0
 
+
+        // start the service
         | [|"service"; port|] ->
 
-            let quotes =
-                [|
-                    "You know nothing, Jon Snow!"
-                    "Brace yourself! Winter is coming!"
-                    "When you play the game of thrones, you win or you die."
-                    "Fear cuts deeper than swords."
-                    "What do we say to the Lord of Death? - Not today."
-                    "Noseless and Handless, the Lannister Boys."
-                    "The North remembers."
-                    "A Lannister always pays his debts."
-                    "The man who passes the sentence should swing the sword."
-                    "A dragon is not a slave."
-                |]
-
-            let r = System.Random()
-
-            let pages =
-                Map.ofList [
-                    "/", fun _ ->
-                        let id = r.Next(quotes.Length)
-                        let q = quotes.[id]
-                        q
-                ]
-            let s = HttpServer(System.Int32.Parse port, pages)
-
+            let s = Service(System.Int32.Parse port)
             s.Run()
-
             0
             
-
+        // start the client
         | [|"client"; directory; directoryPort|] ->
             let c = Client(directory, Int32.Parse directoryPort)
             let mutable running = true
 
-            ClientMonitor.run 8080 c "http://localhost:1234/"
+            ClientUI.run 8080 c "http://localhost:1234/"
 
+            let (sa, sp) = c.GetServiceAddress().Value
 
             while running do
                 printf "client# "
@@ -182,7 +176,7 @@ let main args =
                                 ()
 
                     | "!qod" ->
-                        let data = c.Request(Request("http://localhost:1234/", 0, null)) |> Async.RunSynchronously
+                        let data = c.Request(Request(sprintf "http://%s:%d/" sa sp, 0, null)) |> Async.RunSynchronously
 
                         match data with
                             | Data content ->

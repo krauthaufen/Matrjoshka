@@ -32,10 +32,28 @@ type Client(directory : string, port : int) =
             match pickler.UnPickle reply with
                 | Nodes list ->
                     list
-                | InsufficientRelays available ->
+                | _ ->
                     []
         with _ ->
             []
+
+    let getService() =
+        let data = pickler.Pickle DirectoryRequest.Service
+        let str = Convert.ToBase64String data
+        try
+            writer.WriteLine str
+            writer.Flush()
+
+            let reply = reader.ReadLine()
+            let reply = Convert.FromBase64String reply
+
+            match pickler.UnPickle reply with
+                | DirectoryResponse.Address (address, port) ->
+                    Some (address, port)
+                | _ ->
+                    None
+        with _ ->
+            None
 
     let getNewChain(l: int) =
         getChain (DirectoryRequest.Chain, l)
@@ -73,6 +91,8 @@ type Client(directory : string, port : int) =
     let mutable client : Option<SecureSocket> = None
 
 
+
+
     member x.TryGetChainIP(index : int) =
         if currentChain.Length > index && index >= 0 then
             let (ip, port, _,_) = currentChain.[index]
@@ -108,6 +128,8 @@ type Client(directory : string, port : int) =
         else
             x.Connect c
 
+    member x.GetServiceAddress() =
+        getService()
 
     member x.Disconnect() =
         match client with
