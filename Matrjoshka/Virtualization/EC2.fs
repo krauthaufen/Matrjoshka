@@ -103,7 +103,9 @@ module EC2 =
                 if res.HttpStatusCode <> Net.HttpStatusCode.OK then
                     Log.warn "failed to create tags: %A" (res.ResponseMetadata.Metadata |> Seq.map (fun (KeyValue(k,v)) -> k,v) |> Seq.toList)
 
-    
+                // EC2 gives us an id which is not yet valid (sometimes)
+                Thread.Sleep(100)
+
                 // wait until all instances are ready
                 let ready = ref false
                 while not ready.Value do
