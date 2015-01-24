@@ -49,8 +49,9 @@ type HttpServer(port : int, pages : Map<string, HttpListenerRequest -> string>, 
                                         if path.[0] = System.IO.Path.DirectorySeparatorChar then path.Substring 1
                                         else path
 
-                                    let path = System.IO.Path.Combine(directory, path)
-                                    //printfn "looking up: %A" path
+                                    let basePath = AppDomain.CurrentDomain.BaseDirectory
+                                    let path = System.IO.Path.GetFullPath(System.IO.Path.Combine(basePath, directory, path))
+                                    printfn "looking up: %A" path
 
                                     let probes =
                                         [path; System.IO.Path.ChangeExtension(path, ".html"); System.IO.Path.ChangeExtension(path, ".htm")]
