@@ -27,9 +27,11 @@ type HttpServer(port : int, pages : Map<string, HttpListenerRequest -> string>, 
 
                             let bytes = System.Text.ASCIIEncoding.UTF8.GetBytes(str)
                             response.ContentType <- "text/html"
+                            response.StatusCode <- 200
+
                             response.ContentLength64 <- bytes.LongLength
                             response.OutputStream.Write(bytes, 0, bytes.Length)
-                            response.StatusCode <- 200
+                            
                         | _ ->
                             match directory with
                                 | Some directory ->
@@ -51,10 +53,12 @@ type HttpServer(port : int, pages : Map<string, HttpListenerRequest -> string>, 
                                             let mime = System.Web.MimeMapping.GetMimeMapping(path)
                                             let bytes = System.IO.File.ReadAllBytes(path)
                                             response.ContentType <- mime
+                                            response.StatusCode <- 200
+
                                             response.ContentLength64 <- bytes.LongLength
                                             response.OutputStream.Write(bytes, 0, bytes.Length)
                                             
-                                            response.StatusCode <- 200
+                                            
                                         | _ ->
                                             response.StatusCode <- 404
                                 | _ ->
