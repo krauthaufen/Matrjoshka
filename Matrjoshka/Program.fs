@@ -73,9 +73,12 @@ let main args =
             let chainNodeHandles = pool.StartChainAsync chainNodeCount |> Async.RunSynchronously |> List.toArray
             let mapping = ref (chainNodeHandles |> Array.map (fun h -> h.privateAddress, h.publicAddress) |> Map.ofArray)
 
-            let pending = ConcurrentDictionary<string * int, ChainNodeHandle>()
+            let handles = ConcurrentDictionary<string * int, ChainNodeHandle>()
             for h in chainNodeHandles do
-                pending.TryAdd((h.publicAddress, h.port), h) |> ignore
+                handles.TryAdd((h.publicAddress, h.port), h) |> ignore
+
+            let alive = ConcurrentDictionary<string * int, ChainNodeHandle>()
+
 
             let serviceHandle = pool.StartServiceAsync() |> Async.RunSynchronously
 
@@ -87,31 +90,43 @@ let main args =
             let d = Directory(port, directoryPingPort, remapName, serviceHandle.publicAddress, servicePort)
 
             // whenever a node becomes ready remove it from the
-            // pending ones
+            // add it to the live-set
             d.AddLoginCallback(fun address port ->
-                pending.TryRemove((address, port)) |> ignore
+                match handles.TryGetValue((address, port)) with
+                    | (true, h) ->
+                        alive.TryAdd((address, port), h) |> ignore
+                    | _ ->
+                        ()
             )
 
             d.Start()
-            
             d.WaitForChainNodes(chainNodeCount)
+            
+            d.AddLogoutCallback(fun address port ->
+                handles.TryRemove((address, port)) |> ignore
+                match alive.TryRemove ((address, port)) with
+                    | (true, h) ->
+                        h.shutdown() |> Async.StartAsTask |> ignore
+                    | _ ->
+                        ()
+            )
 
             let restartDeadInstances =
                 async {
                     while true do
                         do! Async.Sleep 10000
-                        let living = d.GetAllNodes() |> List.length
-                        let pendingCount = pending.Count
-                        d.info "running: %d / pending: %d" living pendingCount
+                        let living = alive.Count
+                        d.info "alive: %d" living
 
-                        if living + pendingCount < chainNodeCount then
-                            d.info "%d instances living" living
+                        if living < chainNodeCount then
 
                             let missing = chainNodeCount - living
-                            d.info "restarting %d instances" missing
-                            let! handles = pool.StartChainAsync missing
-                            for h in handles do
-                                pending.TryAdd((h.publicAddress, h.port), h) |> ignore
+                            d.info "starting %d instances" missing
+                            let! chainHandles = pool.StartChainAsync missing
+                            for h in chainHandles do
+                                // consider newly created instances alive
+                                handles.TryAdd((h.publicAddress, h.port), h) |> ignore
+                                alive.TryAdd((h.publicAddress, h.port), h) |> ignore
                                 mapping := Map.add h.privateAddress h.publicAddress !mapping
   
 
