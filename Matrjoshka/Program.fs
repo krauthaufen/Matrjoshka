@@ -31,6 +31,9 @@ let usage() =
     printfn "    chain <directory-ip> <tcp-port>"
     printfn "        the chain node sends alive-messages to the directory"
     printfn "        and accepts client-connections at tcp-port" 
+    printfn ""
+    printfn "    service <tcp-port>"
+    printfn "        starts the webservice at the given tcp-port"
 
 [<EntryPoint>]
 let main args =
@@ -77,7 +80,7 @@ let main args =
                     | Some i -> i
                     | None -> name
 
-            let d = Directory(port, directoryPingPort, remapName, serviceHandle.publicAddress, serviceHandle.port)
+            let d = Directory(port, directoryPingPort, remapName, serviceHandle.publicAddress, servicePort)
             d.Start()
             
             d.WaitForChainNodes(chainNodeCount)
@@ -91,14 +94,12 @@ let main args =
                         if living < chainNodeCount then
                             d.info "%d instances living" living
 
-                        let missing = chainNodeCount - living
-                        if missing > 0 then
+                            let missing = chainNodeCount - living
                             d.info "restarting %d instances" missing
                             let! handles = pool.StartChainAsync missing
                             for h in handles do
                                 mapping := Map.add h.privateAddress h.publicAddress !mapping
-                        else
-                            ()
+  
 
                 }
 
