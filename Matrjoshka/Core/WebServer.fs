@@ -12,7 +12,7 @@ type HttpServer(port : int, pages : Map<string, HttpListenerRequest -> string>, 
     let defaultPage = "<html><head><title>Not Found</title></head><body><h1>not found</h1></body></html>"
 
     do
-        listener.Prefixes.Add ("http://*:" + string port + "/")
+        listener.Prefixes.Add ("http://localhost:" + string port + "/")
         listener.Start()
 
     let run =
