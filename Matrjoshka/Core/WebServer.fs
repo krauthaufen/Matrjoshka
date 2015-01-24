@@ -13,11 +13,11 @@ type HttpServer(port : int, pages : Map<string, HttpListenerRequest -> string>, 
     let defaultPageBytes = System.Text.ASCIIEncoding.UTF8.GetBytes defaultPage
 
     do
-        #if WINDOWS
-        listener.Prefixes.Add ("http://localhost:" + string port + "/")
-        #else
-        listener.Prefixes.Add ("http://*:" + string port + "/")
-        #endif
+
+        if System.Environment.OSVersion.Platform = PlatformID.Unix then
+            listener.Prefixes.Add ("http://*:" + string port + "/")
+        else
+            listener.Prefixes.Add ("http://localhost:" + string port + "/")
         listener.Start()
 
     let run =

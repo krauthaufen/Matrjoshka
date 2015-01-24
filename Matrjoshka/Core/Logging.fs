@@ -154,50 +154,57 @@ type MonitorableHtmlLogger(port : int) =
         """
 
     do
-        let listener = new System.Net.HttpListener()
-        #if WINDOWS
-        listener.Prefixes.Add ("http://localhost:" + string port + "/")
-        #else
-        listener.Prefixes.Add ("http://*:" + string port + "/")
-        #endif
-        listener.Start()
+        try
 
-        let run =
-            async {
-                while true do
-                    let! c = listener.GetContextAsync() |> Async.AwaitTask
+            let listener = new System.Net.HttpListener()
 
+            if System.Environment.OSVersion.Platform = PlatformID.Unix then
+                listener.Prefixes.Add ("http://*:" + string port + "/")
+            else
+                listener.Prefixes.Add ("http://localhost:" + string port + "/")
 
-                    match c.Request.Url.LocalPath with
-                        | "/" ->
-                            let str = builder.ToString()
+            listener.Start()
 
-                            let str = 
-                                if str.Length > 100000 then
-                                    str.Substring(str.Length - 100000, 100000)
-                                else
-                                    str
-
-                            let str = template.Replace("{Content}", str)
+            let run =
+                async {
+                    while true do
+                        let! c = listener.GetContextAsync() |> Async.AwaitTask
 
 
-                            let bytes = System.Text.ASCIIEncoding.UTF8.GetBytes(str)
-                            c.Response.ContentType <- "text/html"
-                            c.Response.StatusCode <- 200
+                        match c.Request.Url.LocalPath with
+                            | "/" ->
+                                let str = builder.ToString()
 
-                            c.Response.ContentLength64 <- bytes.LongLength
-                            c.Response.OutputStream.Write(bytes, 0, bytes.Length)
+                                let str = 
+                                    if str.Length > 100000 then
+                                        str.Substring(str.Length - 100000, 100000)
+                                    else
+                                        str
+
+                                let str = template.Replace("{Content}", str)
+
+
+                                let bytes = System.Text.ASCIIEncoding.UTF8.GetBytes(str)
+                                c.Response.ContentType <- "text/html"
+                                c.Response.StatusCode <- 200
+
+                                c.Response.ContentLength64 <- bytes.LongLength
+                                c.Response.OutputStream.Write(bytes, 0, bytes.Length)
                             
-                        | _ ->
-                            c.Response.StatusCode <- 404
+                            | _ ->
+                                c.Response.StatusCode <- 404
 
-                            c.Response.ContentLength64 <- empty.LongLength
-                            c.Response.OutputStream.Write(empty, 0, empty.Length)
+                                c.Response.ContentLength64 <- empty.LongLength
+                                c.Response.OutputStream.Write(empty, 0, empty.Length)
                             
-                    c.Response.OutputStream.Close()
-            }
+                        c.Response.OutputStream.Close()
+                }
 
-        run |> Async.StartAsTask |> ignore
+            run |> Async.StartAsTask |> ignore
+
+        with e ->
+            printfn "ERROR: %A" e
+            ()
 
     let hexColor (c : int) =
         sprintf "#%02X%02X%02X" ((c &&& 0xFF0000) >>> 16) ((c &&& 0x00FF00) >>> 8) (c &&& 0x0000FF)
@@ -225,7 +232,7 @@ type MultiLogger (loggers : list<ILogger>) =
 [<AutoOpen>]
 module Logging =
     let private cons = ConsoleLogger() :> ILogger
-    let private html = MonitorableHtmlLogger(9998) :> ILogger
+    let private html = MonitorableHtmlLogger(9996) :> ILogger
 
     let private real = MultiLogger [cons; html] :> ILogger
 

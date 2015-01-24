@@ -6,6 +6,7 @@
         <link rel="stylesheet" href="bootstrap/css/bootstrap-theme.min.css" />
         <link rel="stylesheet" href="css/main.css" />
         <script type="text/javascript" src="http://code.jquery.com/jquery-1.11.2.min.js"></script>
+        <script src="http://ajax.googleapis.com/ajax/libs/jqueryui/1.8/jquery-ui.min.js"></script>
         <script type="text/javascript" src="bootstrap/js/bootstrap.min.js"></script>
         <!--<script type="text/javascript" src="http://code.jquery.com/jquery-1.11.2.min.js"></script>-->
         
@@ -14,15 +15,39 @@
             
             function getNewChainIPs() {
                 $.get( "/chain?id=0" , function( data ) {
-                    $("#chain0").html(data);
+                    var el = $("#chain0");
+                    var old = el.html();
+                    if(old != data) {
+                        el.html(data);
+                        
+                        el.css({ fontWeight: "bold" });
+                        el.css({ color: "#FF0000"});
+                        el.animate({ color: "#000000" }, 3000, "swing", function() { el.css({ fontWeight: "normal" }); });   
+                    }
                 });
                 
                 $.get( "/chain?id=1" , function( data ) {
-                    $("#chain1").html(data);
+                    var el = $("#chain1");
+                    var old = el.html();
+                    if(old != data) {
+                        el.html(data);
+                        el.css({ fontWeight: "bold" });
+                        el.css({ color: "#FF0000"});
+                        el.animate({ color: "#000000" }, 3000, "swing", function() { el.css({ fontWeight: "normal" }); });   
+
+                    }
                 });
                 
                 $.get( "/chain?id=2" , function( data ) {
-                    $("#chain2").html(data);
+                    var el = $("#chain2");
+                    var old = el.html();
+                    if(old != data) {
+                        el.html(data);
+                        el.css({ fontWeight: "bold" });
+                        el.css({ color: "#FF0000"});
+                        el.animate({ color: "#000000" }, 3000, "swing", function() { el.css({ fontWeight: "normal" }); });   
+  
+                    }
                 });
             }
             

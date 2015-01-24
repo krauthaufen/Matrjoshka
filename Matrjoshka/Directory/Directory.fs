@@ -81,7 +81,7 @@ type Directory(port : int, pingPort : int, remapAddress : string -> string, serv
 
             let age = DateTime.Now - time
 
-            if age.TotalSeconds > 4.0 then
+            if age.TotalSeconds > 10.0 then
                 remove <- k::remove
             else
                 result <- (address, port, key, useCount)::result
