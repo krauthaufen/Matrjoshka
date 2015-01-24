@@ -15,6 +15,8 @@ type Directory(port : int, pingPort : int, remapAddress : string -> string, serv
     let cancel = new CancellationTokenSource()
     let random = System.Random()
 
+    let mutable loginCallbacks = []
+
     let Log = logger "dir"
 
     let content = ConcurrentDictionary<string * int, byte[] * DateTime * int>()
@@ -49,6 +51,9 @@ type Directory(port : int, pingPort : int, remapAddress : string -> string, serv
 
                             let addFun (address, port) =
                                 Log.info "chain logged in: %s:%d" address port
+                                for cb in loginCallbacks do
+                                    cb address port
+
                                 key, time, 0
 
                             let updateFun (address, port) (oldKey, oldTime, oldUseCount) =
@@ -176,6 +181,9 @@ type Directory(port : int, pingPort : int, remapAddress : string -> string, serv
 
         }
     
+
+    member x.AddLoginCallback (cb) =
+        loginCallbacks <- cb::loginCallbacks
 
     member x.info fmt =
         Log.info fmt

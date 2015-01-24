@@ -73,6 +73,10 @@ let main args =
             let chainNodeHandles = pool.StartChainAsync chainNodeCount |> Async.RunSynchronously |> List.toArray
             let mapping = ref (chainNodeHandles |> Array.map (fun h -> h.privateAddress, h.publicAddress) |> Map.ofArray)
 
+            let pending = ConcurrentDictionary<string * int, ChainNodeHandle>()
+            for h in chainNodeHandles do
+                pending.TryAdd((h.publicAddress, h.port), h) |> ignore
+
             let serviceHandle = pool.StartServiceAsync() |> Async.RunSynchronously
 
             let remapName (name : string) =
@@ -81,6 +85,13 @@ let main args =
                     | None -> name
 
             let d = Directory(port, directoryPingPort, remapName, serviceHandle.publicAddress, servicePort)
+
+            // whenever a node becomes ready remove it from the
+            // pending ones
+            d.AddLoginCallback(fun address port ->
+                pending.TryRemove((address, port)) |> ignore
+            )
+
             d.Start()
             
             d.WaitForChainNodes(chainNodeCount)
@@ -88,16 +99,18 @@ let main args =
             let restartDeadInstances =
                 async {
                     while true do
-                        do! Async.Sleep 5000
+                        do! Async.Sleep 10000
                         let living = d.GetAllNodes() |> List.length
+                        let pendingCount = pending.Count
 
-                        if living < chainNodeCount then
+                        if living + pendingCount < chainNodeCount then
                             d.info "%d instances living" living
 
                             let missing = chainNodeCount - living
                             d.info "restarting %d instances" missing
                             let! handles = pool.StartChainAsync missing
                             for h in handles do
+                                pending.TryAdd((h.publicAddress, h.port), h) |> ignore
                                 mapping := Map.add h.privateAddress h.publicAddress !mapping
   
 
