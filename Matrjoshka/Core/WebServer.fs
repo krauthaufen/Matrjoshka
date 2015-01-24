@@ -10,9 +10,14 @@ type HttpServer(port : int, pages : Map<string, HttpListenerRequest -> string>, 
     let cancel = new CancellationTokenSource()
     let Log = Logging.logger (sprintf "http:%d" port)
     let defaultPage = "<html><head><title>Not Found</title></head><body><h1>not found</h1></body></html>"
+    let defaultPageBytes = System.Text.ASCIIEncoding.UTF8.GetBytes defaultPage
 
     do
+        #if WINDOWS
         listener.Prefixes.Add ("http://localhost:" + string port + "/")
+        #else
+        listener.Prefixes.Add ("http://*:" + string port + "/")
+        #endif
         listener.Start()
 
     let run =
@@ -61,8 +66,12 @@ type HttpServer(port : int, pages : Map<string, HttpListenerRequest -> string>, 
                                             
                                         | _ ->
                                             response.StatusCode <- 404
+                                            response.ContentLength64 <- defaultPageBytes.LongLength
+                                            response.OutputStream.Write(defaultPageBytes, 0, defaultPageBytes.Length)
                                 | _ ->
                                     response.StatusCode <- 404
+                                    response.ContentLength64 <- defaultPageBytes.LongLength
+                                    response.OutputStream.Write(defaultPageBytes, 0, defaultPageBytes.Length)
 
 
                         

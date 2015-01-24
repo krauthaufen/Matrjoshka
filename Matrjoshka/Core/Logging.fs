@@ -155,7 +155,11 @@ type MonitorableHtmlLogger(port : int) =
 
     do
         let listener = new System.Net.HttpListener()
+        #if WINDOWS
         listener.Prefixes.Add ("http://localhost:" + string port + "/")
+        #else
+        listener.Prefixes.Add ("http://*:" + string port + "/")
+        #endif
         listener.Start()
 
         let run =
@@ -202,10 +206,22 @@ type MonitorableHtmlLogger(port : int) =
         member x.WriteLine line = x.WriteLine line
         member x.WriteColoredLine color line = x.WriteColoredLine color line
 
+type MultiLogger (loggers : list<ILogger>) =
+    
+    interface ILogger with
+        member x.WriteLine str =
+            for l in loggers do l.WriteLine str
+
+        member x.WriteColoredLine col str =
+            for l in loggers do l.WriteColoredLine col str
+
 
 [<AutoOpen>]
 module Logging =
-    let private real = ConsoleLogger() :> ILogger
+    let private cons = ConsoleLogger() :> ILogger
+    let private html = MonitorableHtmlLogger(9998) :> ILogger
+
+    let private real = MultiLogger [cons; html] :> ILogger
 
     let logger (name : string) =
         NamedLogger(name, real) :> ILogger

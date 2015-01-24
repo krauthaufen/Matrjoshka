@@ -33,13 +33,13 @@
     <Optimize>true</Optimize>
     <Tailcalls>true</Tailcalls>
     <OutputPath>..\build\Release\</OutputPath>
-    <DefineConstants>TRACE</DefineConstants>
+    <DefineConstants>TRACE;WINDOWS</DefineConstants>
     <WarningLevel>3</WarningLevel>
     <PlatformTarget>AnyCPU</PlatformTarget>
     <DocumentationFile>
     </DocumentationFile>
     <Prefer32Bit>false</Prefer32Bit>
-    <StartArguments>client 54.77.90.172 9999</StartArguments>
+    <StartArguments>client localhost 9999</StartArguments>
     <Commandlineparameters>directory 9999</Commandlineparameters>
   </PropertyGroup>
   <PropertyGroup>

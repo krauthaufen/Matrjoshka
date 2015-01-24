@@ -51,7 +51,8 @@ module ClientUI =
                         sprintf "{ \"status\" : 0, \"error\": \"%s\" }" e.Message
             ]
 
-        let s = HttpServer(port, pages, @"E:\Development\Matrjoshka\Matrjoshka\WebServer\static")
+        let path = System.IO.Path.Combine("..", "..", "Matrjoshka", "WebServer", "static")
+        let s = HttpServer(port, pages, path)
 
         s.Start() //Run()
         //System.Environment.Exit(0)
