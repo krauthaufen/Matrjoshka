@@ -194,7 +194,7 @@ type MonitorableHtmlLogger(port : int) =
                             c.Response.ContentLength64 <- empty.LongLength
                             c.Response.OutputStream.Write(empty, 0, empty.Length)
                             
-
+                    c.Response.OutputStream.Close()
             }
 
         run |> Async.StartAsTask |> ignore

@@ -28,15 +28,18 @@ type HttpServer(port : int, pages : Map<string, HttpListenerRequest -> string>, 
                     let response = c.Response
                     match Map.tryFind c.Request.Url.LocalPath pages with
                         | Some pageFun ->
-                            let str = pageFun c.Request
+                            try
+                                let str = pageFun c.Request
 
-                            let bytes = System.Text.ASCIIEncoding.UTF8.GetBytes(str)
-                            response.ContentType <- "text/html"
-                            response.StatusCode <- 200
+                                let bytes = System.Text.ASCIIEncoding.UTF8.GetBytes(str)
+                                response.ContentType <- "text/html"
+                                response.StatusCode <- 200
 
-                            response.ContentLength64 <- bytes.LongLength
-                            response.OutputStream.Write(bytes, 0, bytes.Length)
-                            
+                                response.ContentLength64 <- bytes.LongLength
+                                response.OutputStream.Write(bytes, 0, bytes.Length)
+                            with e ->
+                                printfn "%A" e
+                                ()
                         | _ ->
                             match directory with
                                 | Some directory ->
@@ -73,7 +76,7 @@ type HttpServer(port : int, pages : Map<string, HttpListenerRequest -> string>, 
                                     response.ContentLength64 <- defaultPageBytes.LongLength
                                     response.OutputStream.Write(defaultPageBytes, 0, defaultPageBytes.Length)
 
-
+                    response.OutputStream.Close()
                         
                 with 
                     | :? OperationCanceledException -> () //shutdown

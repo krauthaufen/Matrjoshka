@@ -3,6 +3,8 @@ namespace Matrjoshka
 open System.Threading
 
 type Service(port : int) =
+    let Log = Logging.logger "service"
+
     let quotes =
                 [|
                     "You know nothing, Jon Snow!"
@@ -22,14 +24,17 @@ type Service(port : int) =
     let pages =
         Map.ofList [
             "/", fun _ ->
+                
                 let id = r.Next(quotes.Length)
                 let q = quotes.[id]
+                Log.info "quote: %A" q
                 q
         ]
 
     let s = HttpServer(port, pages)
 
     member x.Start(?ct : CancellationToken) = 
+        Log.info "starting service"
         match ct with 
             | Some ct -> s.Start(ct)
             | _ -> s.Start()
