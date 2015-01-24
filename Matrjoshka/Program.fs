@@ -106,7 +106,8 @@ let main args =
                 handles.TryRemove((address, port)) |> ignore
                 match alive.TryRemove ((address, port)) with
                     | (true, h) ->
-                        h.shutdown() |> Async.StartAsTask |> ignore
+                        try h.shutdown() |> Async.RunSynchronously |> ignore
+                        with _ -> ()
                     | _ ->
                         ()
             )
