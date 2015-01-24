@@ -129,6 +129,10 @@ let main args =
                         
                     | "!chain" ->
                         d.PrintChainNodes()
+
+                    | "!service" ->
+                        d.info "service: %s:%d" serviceHandle.publicAddress serviceHandle.port
+
                     | _ ->
                         ()
 
@@ -149,9 +153,11 @@ let main args =
             let c = Client(directory, Int32.Parse directoryPort)
             let mutable running = true
 
-            ClientUI.run 8080 c "http://localhost:1234/"
-
             let (sa, sp) = c.GetServiceAddress().Value
+            let serviceURL = sprintf "http://%s:%d/" sa sp
+            ClientUI.run 1337 c serviceURL
+
+            
 
             while running do
                 printf "client# "
@@ -176,7 +182,7 @@ let main args =
                                 ()
 
                     | "!qod" ->
-                        let data = c.Request(Request(sprintf "http://%s:%d/" sa sp, 0, null)) |> Async.RunSynchronously
+                        let data = c.Request(Request(serviceURL, 0, null)) |> Async.RunSynchronously
 
                         match data with
                             | Data content ->
