@@ -20,16 +20,16 @@ type HttpServer(port : int, pages : Map<string, HttpListenerRequest -> string>, 
             try
                 while true do
                     let! c = listener.GetContextAsync() |> Async.AwaitTask
-
+                    let response = c.Response
                     match Map.tryFind c.Request.Url.LocalPath pages with
                         | Some pageFun ->
                             let str = pageFun c.Request
 
                             let bytes = System.Text.ASCIIEncoding.UTF8.GetBytes(str)
-                            c.Response.ContentLength64 <- bytes.LongLength
-                            c.Response.OutputStream.Write(bytes, 0, bytes.Length)
-                            c.Response.ContentType <- "text/html"
-                            c.Response.StatusCode <- 200
+                            response.ContentType <- "text/html"
+                            response.ContentLength64 <- bytes.LongLength
+                            response.OutputStream.Write(bytes, 0, bytes.Length)
+                            response.StatusCode <- 200
                         | _ ->
                             match directory with
                                 | Some directory ->
@@ -50,14 +50,18 @@ type HttpServer(port : int, pages : Map<string, HttpListenerRequest -> string>, 
                                         | Some path ->
                                             let mime = System.Web.MimeMapping.GetMimeMapping(path)
                                             let bytes = System.IO.File.ReadAllBytes(path)
-                                            c.Response.ContentLength64 <- bytes.LongLength
-                                            c.Response.OutputStream.Write(bytes, 0, bytes.Length)
-                                            c.Response.ContentType <- mime
-                                            c.Response.StatusCode <- 200
+                                            response.ContentType <- mime
+                                            response.ContentLength64 <- bytes.LongLength
+                                            response.OutputStream.Write(bytes, 0, bytes.Length)
+                                            
+                                            response.StatusCode <- 200
                                         | _ ->
-                                            c.Response.StatusCode <- 404
+                                            response.StatusCode <- 404
                                 | _ ->
-                                    c.Response.StatusCode <- 404
+                                    response.StatusCode <- 404
+
+
+                        
                 with 
                     | :? OperationCanceledException -> () //shutdown
                     | e -> Log.error "%A" e
