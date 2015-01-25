@@ -9,8 +9,10 @@ Connect to the instance and run
 > start \<port\>
 
 
-Afterwards execute start.sh in the home folder of the Virtual box. This should just start 
-> Matrjoshka.exe \<ip\> \<port\> 
+Afterwards execute 
+> start \<ip\> \<port\>
+
+in the home folder of the Virtual box. This should just start Matrjoshka.exe \<ip\> \<port\> 
 
 with the corresponding ip and port of the directory.
 
