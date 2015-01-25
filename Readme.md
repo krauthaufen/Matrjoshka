@@ -19,6 +19,10 @@ When the startup is finished you can open a browser (in the VM) and connect to l
 
 There is the Webinterface where you can click "Build new Chain" to get a new Chain, or "Get Quote" to get a quote. Note: for the latter one you need to have a Chain established.
 
+To stop any component just connect to it and write
+> !shutdown
+
+On the directory this terminates the Service as well as the Chain Nodes. (Note: for simplicity the Directory also starts/stops the service... Normally this wouldnt be appropriate).
 
 ## Installation
 
