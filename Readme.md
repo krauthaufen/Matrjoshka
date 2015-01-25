@@ -12,9 +12,7 @@ Connect to the instance and run
 Afterwards execute 
 > start \<ip\> \<port\>
 
-in the home folder of the Virtual box. This should just start Matrjoshka.exe \<ip\> \<port\> 
-
-with the corresponding ip and port of the directory.
+in the home folder of the Virtual box. This should just start Matrjoshka.exe \<ip\> \<port\> with the corresponding ip and port of the directory.
 
 When the startup is finished you can open a browser (in the VM) and connect to localhost:1337.
 
