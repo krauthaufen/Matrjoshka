@@ -51,12 +51,12 @@
                 });
             }
             
-            function rebuildChain() {
+            function rebuildChain(func) {
                 $.get( "/connect" , function( data ) {
                     var result = $.parseJSON(data);
                     if(result.status == 1) {
                         isConnected = true;
-                        getNewChainIPs();
+                        func();
                     }
                     else {
                         isConnected = false;
@@ -66,25 +66,30 @@
             }
             
             function getQuote() {
-                if(!isConnected) {
-                    alert("You must first establish a chain");
-                }
-                else{
+                $('.quote').fadeOut(500);
+                rebuildChain(function() {
+                    getNewChainIPs();
                     $.get( "/qod" , function( data ) {
                         var result = $.parseJSON(data);
                         if(result.status == 1) {
                             $("#quote").html(result.quote + "<br><code>" + result.time + "ms</code>");
+                            $('.quote').fadeIn(500);
                         }
                         else {
                             alert("ERROR: " + result.error);
                         }
                     });
-                }
+                });                
             }
             
+
+            function getNewChain() {
+                rebuildChain(getNewChainIPs);
+            }
             
             $( document ).ready(function () {
                 getNewChainIPs();
+                $('.quote').hide();
             });
         </script>
         
@@ -93,7 +98,7 @@
         <div class="container">
             <h1><img src="img/logo.png" /> Matrjoshka Routing <img src="img/logo.png" /></h1>
             <button class="btn btn-xlg btn-primary" onclick="getQuote()">Get Quote!</button>
-            <button class="btn btn-xlg btn-primary" onclick="rebuildChain()">Build New Chain</button>
+            <button class="btn btn-xlg btn-primary" onclick="getNewChain()">Build New Chain</button>
             <div id="gif" class="routing"><img src="img/southpark-matrjoshka.gif" /></div>
             <div class="entities">
                 <div class="col-sm-3">
