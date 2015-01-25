@@ -19,7 +19,7 @@ For the test we try to keep the instance with the IP "54.154.222.15" up. As the 
 
 When the startup is finished you can open a browser (in the VM) and connect to localhost:1337.
 
-There is the Webinterface where you can click "Build new Chain" to get a new Chain, or "Get Quote" to get a quote. Note: for the latter one you need to have a Chain established.
+There is the Webinterface where you can click "Get Quote" to get a quote (through a new chain).
 
 To stop any component just connect to it and write
 > !shutdown
