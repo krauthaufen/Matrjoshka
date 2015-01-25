@@ -73,9 +73,12 @@ let main args =
             let chainNodeHandles = pool.StartChainAsync chainNodeCount |> Async.RunSynchronously |> List.toArray
             let mapping = ref (chainNodeHandles |> Array.map (fun h -> h.privateAddress, h.publicAddress) |> Map.ofArray)
 
-            let pending = ConcurrentDictionary<string * int, ChainNodeHandle>()
+            let handles = ConcurrentDictionary<string * int, ChainNodeHandle>()
             for h in chainNodeHandles do
-                pending.TryAdd((h.publicAddress, h.port), h) |> ignore
+                handles.TryAdd((h.publicAddress, h.port), h) |> ignore
+
+            let alive = ConcurrentDictionary<string * int, ChainNodeHandle>()
+
 
             let serviceHandle = pool.StartServiceAsync() |> Async.RunSynchronously
 
@@ -87,31 +90,44 @@ let main args =
             let d = Directory(port, directoryPingPort, remapName, serviceHandle.publicAddress, servicePort)
 
             // whenever a node becomes ready remove it from the
-            // pending ones
+            // add it to the live-set
             d.AddLoginCallback(fun address port ->
-                pending.TryRemove((address, port)) |> ignore
+                match handles.TryGetValue((address, port)) with
+                    | (true, h) ->
+                        alive.TryAdd((address, port), h) |> ignore
+                    | _ ->
+                        ()
             )
 
             d.Start()
-            
             d.WaitForChainNodes(chainNodeCount)
+            
+            d.AddLogoutCallback(fun address port ->
+                handles.TryRemove((address, port)) |> ignore
+                match alive.TryRemove ((address, port)) with
+                    | (true, h) ->
+                        try h.shutdown() |> Async.RunSynchronously |> ignore
+                        with _ -> ()
+                    | _ ->
+                        ()
+            )
 
             let restartDeadInstances =
                 async {
                     while true do
                         do! Async.Sleep 10000
-                        let living = d.GetAllNodes() |> List.length
-                        let pendingCount = pending.Count
-                        d.info "running: %d / pending: %d" living pendingCount
+                        let living = alive.Count
+                        d.info "alive: %d" living
 
-                        if living + pendingCount < chainNodeCount then
-                            d.info "%d instances living" living
+                        if living < chainNodeCount then
 
                             let missing = chainNodeCount - living
-                            d.info "restarting %d instances" missing
-                            let! handles = pool.StartChainAsync missing
-                            for h in handles do
-                                pending.TryAdd((h.publicAddress, h.port), h) |> ignore
+                            d.info "starting %d instances" missing
+                            let! chainHandles = pool.StartChainAsync missing
+                            for h in chainHandles do
+                                // consider newly created instances alive
+                                handles.TryAdd((h.publicAddress, h.port), h) |> ignore
+                                alive.TryAdd((h.publicAddress, h.port), h) |> ignore
                                 mapping := Map.add h.privateAddress h.publicAddress !mapping
   
 
@@ -126,16 +142,12 @@ let main args =
                 let line = Console.ReadLine()
 
                 match line with
-                    | "!kill" ->
-                        let id = rand.Next(chainNodeHandles.Length)
-
-                        let c = chainNodeHandles.[id]
-                        c.shutdown() |> Async.RunSynchronously
-
 
                     | "!shutdown" ->
-                        chainNodeHandles |> Array.iter(fun c -> c.shutdown() |> Async.RunSynchronously) 
-                        serviceHandle.shutdown() |> Async.RunSynchronously
+                        chainNodeHandles |> Array.iter(fun c -> try c.shutdown() |> Async.RunSynchronously with _ -> ()) 
+
+                        try serviceHandle.shutdown() |> Async.RunSynchronously
+                        with _ -> ()
 
                         pool.Dispose()
                         d.Stop()
@@ -168,11 +180,8 @@ let main args =
             let c = Client(directory, Int32.Parse directoryPort)
             let mutable running = true
 
-            let (sa, sp) = c.GetServiceAddress().Value
-            let serviceURL = sprintf "http://%s:%d/" sa sp
-            ClientUI.run 1337 c serviceURL
-
-            
+            let serviceAddress = ref None
+            ClientUI.run 1337 c
 
             while running do
                 printf "client# "
@@ -185,27 +194,29 @@ let main args =
                     | "!connect" ->
                         printfn "%A" <| c.Connect(3)
 
-                    | "!google" ->
-                        let data = c.Request(Request("http://www.orf.at", 0, null)) |> Async.RunSynchronously
-
-                        match data with
-                            | Data content ->
-                                printfn "got:\r\n\r\n%s" (System.Text.ASCIIEncoding.UTF8.GetString content)
-                            | Exception e->
-                                printfn "ERROR: %A" e
-                            | _ ->
-                                ()
-
                     | "!qod" ->
-                        let data = c.Request(Request(serviceURL, 0, null)) |> Async.RunSynchronously
+                        try
+                            // get the service URL (if not yet read from the directory)
+                            let serviceURL =
+                                match !serviceAddress with
+                                    | Some url -> url
+                                    | None ->
+                                        let (sa, sp) = c.GetServiceAddress().Value
+                                        let serviceURL = sprintf "http://%s:%d/" sa sp
+                                        serviceAddress := Some serviceURL
+                                        serviceURL
 
-                        match data with
-                            | Data content ->
-                                printfn "got:\r\n\r\n%s" (System.Text.ASCIIEncoding.UTF8.GetString content)
-                            | Exception err ->
-                                printfn "ERROR: %A" err
-                            | _ ->
-                                ()           
+                            let data = c.Request(Request(serviceURL, 0, null)) |> Async.RunSynchronously
+
+                            match data with
+                                | Data content ->
+                                    printfn "got:\r\n\r\n%s" (System.Text.ASCIIEncoding.UTF8.GetString content)
+                                | Exception err ->
+                                    printfn "ERROR: %A" err
+                                | _ ->
+                                    ()           
+                        with _ ->
+                            printfn "error getting quote"
                          
                     | _ -> () 
 

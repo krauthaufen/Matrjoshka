@@ -6,6 +6,7 @@
         <link rel="stylesheet" href="bootstrap/css/bootstrap-theme.min.css" />
         <link rel="stylesheet" href="css/main.css" />
         <script type="text/javascript" src="http://code.jquery.com/jquery-1.11.2.min.js"></script>
+        <script src="http://ajax.googleapis.com/ajax/libs/jqueryui/1.8/jquery-ui.min.js"></script>
         <script type="text/javascript" src="bootstrap/js/bootstrap.min.js"></script>
         <!--<script type="text/javascript" src="http://code.jquery.com/jquery-1.11.2.min.js"></script>-->
         
@@ -14,24 +15,48 @@
             
             function getNewChainIPs() {
                 $.get( "/chain?id=0" , function( data ) {
-                    $("#chain0").html(data);
+                    var el = $("#chain0");
+                    var old = el.html();
+                    if(old != data) {
+                        el.html(data);
+                        
+                        el.css({ fontWeight: "bold" });
+                        el.css({ color: "#FF0000"});
+                        el.animate({ color: "#000000" }, 3000, "swing", function() { el.css({ fontWeight: "normal" }); });   
+                    }
                 });
                 
                 $.get( "/chain?id=1" , function( data ) {
-                    $("#chain1").html(data);
+                    var el = $("#chain1");
+                    var old = el.html();
+                    if(old != data) {
+                        el.html(data);
+                        el.css({ fontWeight: "bold" });
+                        el.css({ color: "#FF0000"});
+                        el.animate({ color: "#000000" }, 3000, "swing", function() { el.css({ fontWeight: "normal" }); });   
+
+                    }
                 });
                 
                 $.get( "/chain?id=2" , function( data ) {
-                    $("#chain2").html(data);
+                    var el = $("#chain2");
+                    var old = el.html();
+                    if(old != data) {
+                        el.html(data);
+                        el.css({ fontWeight: "bold" });
+                        el.css({ color: "#FF0000"});
+                        el.animate({ color: "#000000" }, 3000, "swing", function() { el.css({ fontWeight: "normal" }); });   
+  
+                    }
                 });
             }
             
-            function rebuildChain() {
+            function rebuildChain(func) {
                 $.get( "/connect" , function( data ) {
                     var result = $.parseJSON(data);
                     if(result.status == 1) {
                         isConnected = true;
-                        getNewChainIPs();
+                        func();
                     }
                     else {
                         isConnected = false;
@@ -41,25 +66,30 @@
             }
             
             function getQuote() {
-                if(!isConnected) {
-                    alert("You must first establish a chain");
-                }
-                else{
+                $('.quote').fadeOut(500);
+                rebuildChain(function() {
+                    getNewChainIPs();
                     $.get( "/qod" , function( data ) {
                         var result = $.parseJSON(data);
                         if(result.status == 1) {
                             $("#quote").html(result.quote + "<br><code>" + result.time + "ms</code>");
+                            $('.quote').fadeIn(500);
                         }
                         else {
                             alert("ERROR: " + result.error);
                         }
                     });
-                }
+                });                
             }
             
+
+            function getNewChain() {
+                rebuildChain(getNewChainIPs);
+            }
             
             $( document ).ready(function () {
                 getNewChainIPs();
+                $('.quote').hide();
             });
         </script>
         
@@ -68,7 +98,7 @@
         <div class="container">
             <h1><img src="img/logo.png" /> Matrjoshka Routing <img src="img/logo.png" /></h1>
             <button class="btn btn-xlg btn-primary" onclick="getQuote()">Get Quote!</button>
-            <button class="btn btn-xlg btn-primary" onclick="rebuildChain()">Build New Chain</button>
+            <!-- <button class="btn btn-xlg btn-primary" onclick="getNewChain()">Build New Chain</button> -->
             <div id="gif" class="routing"><img src="img/southpark-matrjoshka.gif" /></div>
             <div class="entities">
                 <div class="col-sm-3">

@@ -90,7 +90,7 @@ type NamedLogger(name : string, inner : ILogger) =
 
 type MonitorableHtmlLogger(port : int) =
     let builder = System.Text.StringBuilder()
-
+    let empty = System.Text.ASCIIEncoding.UTF8.GetBytes "not found"
 
     let template =
         """
@@ -154,40 +154,57 @@ type MonitorableHtmlLogger(port : int) =
         """
 
     do
-        let listener = new System.Net.HttpListener()
-        listener.Prefixes.Add ("http://localhost:" + string port + "/")
-        listener.Start()
+        try
 
-        let run =
-            async {
-                while true do
-                    let! c = listener.GetContextAsync() |> Async.AwaitTask
+            let listener = new System.Net.HttpListener()
 
+            if System.Environment.OSVersion.Platform = PlatformID.Unix then
+                listener.Prefixes.Add ("http://*:" + string port + "/")
+            else
+                listener.Prefixes.Add ("http://localhost:" + string port + "/")
 
-                    match c.Request.Url.LocalPath with
-                        | "/" ->
-                            let str = builder.ToString()
+            listener.Start()
 
-                            let str = 
-                                if str.Length > 100000 then
-                                    str.Substring(str.Length - 100000, 100000)
-                                else
-                                    str
-
-                            let str = template.Replace("{Content}", str)
+            let run =
+                async {
+                    while true do
+                        let! c = listener.GetContextAsync() |> Async.AwaitTask
 
 
-                            let bytes = System.Text.ASCIIEncoding.UTF8.GetBytes(str)
-                            c.Response.ContentLength64 <- bytes.LongLength
-                            c.Response.OutputStream.Write(bytes, 0, bytes.Length)
-                            c.Response.ContentType <- "text/html"
-                            c.Response.StatusCode <- 200
-                        | _ ->
-                            c.Response.StatusCode <- 404
+                        match c.Request.Url.LocalPath with
+                            | "/" ->
+                                let str = builder.ToString()
 
-            }
+                                let str = 
+                                    if str.Length > 100000 then
+                                        str.Substring(str.Length - 100000, 100000)
+                                    else
+                                        str
 
-        run |> Async.StartAsTask |> ignore
+                                let str = template.Replace("{Content}", str)
+
+
+                                let bytes = System.Text.ASCIIEncoding.UTF8.GetBytes(str)
+                                c.Response.ContentType <- "text/html"
+                                c.Response.StatusCode <- 200
+
+                                c.Response.ContentLength64 <- bytes.LongLength
+                                c.Response.OutputStream.Write(bytes, 0, bytes.Length)
+                            
+                            | _ ->
+                                c.Response.StatusCode <- 404
+
+                                c.Response.ContentLength64 <- empty.LongLength
+                                c.Response.OutputStream.Write(empty, 0, empty.Length)
+                            
+                        c.Response.OutputStream.Close()
+                }
+
+            run |> Async.StartAsTask |> ignore
+
+        with e ->
+            printfn "ERROR: %A" e
+            ()
 
     let hexColor (c : int) =
         sprintf "#%02X%02X%02X" ((c &&& 0xFF0000) >>> 16) ((c &&& 0x00FF00) >>> 8) (c &&& 0x0000FF)
@@ -202,10 +219,22 @@ type MonitorableHtmlLogger(port : int) =
         member x.WriteLine line = x.WriteLine line
         member x.WriteColoredLine color line = x.WriteColoredLine color line
 
+type MultiLogger (loggers : list<ILogger>) =
+    
+    interface ILogger with
+        member x.WriteLine str =
+            for l in loggers do l.WriteLine str
+
+        member x.WriteColoredLine col str =
+            for l in loggers do l.WriteColoredLine col str
+
 
 [<AutoOpen>]
 module Logging =
-    let private real = ConsoleLogger() :> ILogger
+    let private cons = ConsoleLogger() :> ILogger
+    let private html = MonitorableHtmlLogger(9996) :> ILogger
+
+    let private real = MultiLogger [cons; html] :> ILogger
 
     let logger (name : string) =
         NamedLogger(name, real) :> ILogger

@@ -13,7 +13,7 @@ open Nessos.FsPickler
 /// and effectively sends/receives Base64-encoded strings.
 /// </summary>
 type PlainSocket() =
-    static let timeout = 2000
+    static let timeout = 10000
     static let pickler = FsPickler.CreateBinary(true)
     let mutable client : TcpClient = null
     let mutable stream : NetworkStream = null

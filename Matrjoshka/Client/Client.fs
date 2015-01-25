@@ -10,49 +10,58 @@ open Matrjoshka.Cryptography
 
 type Client(directory : string, port : int) =
     static let pickler = FsPickler.CreateBinary(true)
-    
-    let dirClient = new TcpClient(directory, port)
-    let stream = dirClient.GetStream()
+    static let Log = Logging.logger "client"
 
-    let reader = new StreamReader(stream)
-    let writer = new StreamWriter(stream)
+    let mutable isConnected = false
+    let socket = PlainSocket()
+
+    let tryConnect() =
+        if isConnected then true
+        else
+            try 
+                socket.Connect(directory, port)
+                isConnected <- true
+                true
+            with _ ->
+                Log.warn "could not connect to directory"
+                false
+
+    do tryConnect() |> ignore
+
     let mutable currentChain = [||]
 
     let getChain(req: int->DirectoryRequest, l:int) =
-        let r = req l
-        let data = pickler.Pickle r
-        let str = Convert.ToBase64String data
-        try
-            writer.WriteLine str
-            writer.Flush()
+        if tryConnect() then
+            let r = req l
+            try
+                socket.Send(r)
+                let reply = socket.Receive() |> Async.RunSynchronously
 
-            let reply = reader.ReadLine()
-            let reply = Convert.FromBase64String reply
-
-            match pickler.UnPickle reply with
-                | Nodes list ->
-                    list
-                | _ ->
-                    []
-        with _ ->
+                match reply with
+                    | Nodes list ->
+                        list
+                    | _ ->
+                        []
+            with _ ->
+                []
+        else
             []
 
+
     let getService() =
-        let data = pickler.Pickle DirectoryRequest.Service
-        let str = Convert.ToBase64String data
-        try
-            writer.WriteLine str
-            writer.Flush()
+        if tryConnect() then
+            try
+                socket.Send DirectoryRequest.Service
+                let response = socket.Receive() |> Async.RunSynchronously
+                match response with
+                    | DirectoryResponse.Address (address, port) ->
+                        Some (address, port)
+                    | _ ->
+                        None
 
-            let reply = reader.ReadLine()
-            let reply = Convert.FromBase64String reply
-
-            match pickler.UnPickle reply with
-                | DirectoryResponse.Address (address, port) ->
-                    Some (address, port)
-                | _ ->
-                    None
-        with _ ->
+            with _ ->
+                None
+        else
             None
 
     let getNewChain(l: int) =
@@ -101,32 +110,44 @@ type Client(directory : string, port : int) =
             None
 
     member x.GetNewChain(count: int) =
-        getNewChain count
+        if tryConnect() then
+            getNewChain count
+        else
+            []
 
     member x.GetRandomChain(count : int) =
-        getRandomChain count
+        if tryConnect() then
+            getRandomChain count
+        else
+            []
 
     member x.Connect(chain : list<string * int * RsaPublicKey * int>) =
-        currentChain <- chain |> List.toArray
-        match builChain (List.rev chain) with
-            | Choice1Of2 newClient ->
+        if tryConnect() then
+            currentChain <- chain |> List.toArray
+            match builChain (List.rev chain) with
+                | Choice1Of2 newClient ->
                 
-                match client with
-                    | Some old -> old.Disconnect()
-                    | None -> ()
+                    match client with
+                        | Some old -> old.Disconnect()
+                        | None -> ()
                 
-                client <- Some newClient
+                    client <- Some newClient
 
-                Success()
-            | Choice2Of2 e ->
-                Error e
+                    Success()
+                | Choice2Of2 e ->
+                    Error e
+        else
+            Error "could not connect to directory"
 
     member x.Connect(count : int) =
-        let c = x.GetNewChain(count)
-        if List.isEmpty c then
-            Error "could not get chain from directory"
+        if tryConnect() then
+            let c = x.GetNewChain(count)
+            if List.isEmpty c then
+                Error "could not get chain from directory"
+            else
+                x.Connect c
         else
-            x.Connect c
+            Error "could not connect to directory"
 
     member x.GetServiceAddress() =
         getService()
@@ -136,10 +157,14 @@ type Client(directory : string, port : int) =
             | Some c -> 
                 c.Disconnect()
                 client <- None
-                reader.Dispose()
-                writer.Dispose()
-                stream.Dispose()
-                dirClient.Close()
+                if isConnected then
+                    isConnected <- false
+                    socket.Disconnect()
+//                socket.Disconnect()
+//                reader.Dispose()
+//                writer.Dispose()
+//                stream.Dispose()
+//                dirClient.Close()
             | None ->
                 ()
 

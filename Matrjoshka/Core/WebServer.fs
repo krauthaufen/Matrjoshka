@@ -10,9 +10,14 @@ type HttpServer(port : int, pages : Map<string, HttpListenerRequest -> string>, 
     let cancel = new CancellationTokenSource()
     let Log = Logging.logger (sprintf "http:%d" port)
     let defaultPage = "<html><head><title>Not Found</title></head><body><h1>not found</h1></body></html>"
+    let defaultPageBytes = System.Text.ASCIIEncoding.UTF8.GetBytes defaultPage
 
     do
-        listener.Prefixes.Add ("http://localhost:" + string port + "/")
+
+        if System.Environment.OSVersion.Platform = PlatformID.Unix then
+            listener.Prefixes.Add ("http://*:" + string port + "/")
+        else
+            listener.Prefixes.Add ("http://localhost:" + string port + "/")
         listener.Start()
 
     let run =
@@ -23,15 +28,18 @@ type HttpServer(port : int, pages : Map<string, HttpListenerRequest -> string>, 
                     let response = c.Response
                     match Map.tryFind c.Request.Url.LocalPath pages with
                         | Some pageFun ->
-                            let str = pageFun c.Request
+                            try
+                                let str = pageFun c.Request
 
-                            let bytes = System.Text.ASCIIEncoding.UTF8.GetBytes(str)
-                            response.ContentType <- "text/html"
-                            response.StatusCode <- 200
+                                let bytes = System.Text.ASCIIEncoding.UTF8.GetBytes(str)
+                                response.ContentType <- "text/html"
+                                response.StatusCode <- 200
 
-                            response.ContentLength64 <- bytes.LongLength
-                            response.OutputStream.Write(bytes, 0, bytes.Length)
-                            
+                                response.ContentLength64 <- bytes.LongLength
+                                response.OutputStream.Write(bytes, 0, bytes.Length)
+                            with e ->
+                                printfn "%A" e
+                                ()
                         | _ ->
                             match directory with
                                 | Some directory ->
@@ -41,15 +49,21 @@ type HttpServer(port : int, pages : Map<string, HttpListenerRequest -> string>, 
                                         if path.[0] = System.IO.Path.DirectorySeparatorChar then path.Substring 1
                                         else path
 
-                                    let path = System.IO.Path.Combine(directory, path)
-                                    //printfn "looking up: %A" path
-
+                                    let basePath = AppDomain.CurrentDomain.BaseDirectory
+                                    let path = System.IO.Path.GetFullPath(System.IO.Path.Combine(basePath, directory, path))
+                                    Log.info "checking path: %A" path
                                     let probes =
                                         [path; System.IO.Path.ChangeExtension(path, ".html"); System.IO.Path.ChangeExtension(path, ".htm")]
+
+
+                                    let probes =
+                                        if c.Request.Url.LocalPath = "/" then System.IO.Path.Combine(path, "quote.html")::probes
+                                        else probes
 
                                     let path = probes |> List.tryFind System.IO.File.Exists
                                     match path with
                                         | Some path ->
+                                            Log.info "found: %A" path
                                             let mime = System.Web.MimeMapping.GetMimeMapping(path)
                                             let bytes = System.IO.File.ReadAllBytes(path)
                                             response.ContentType <- mime
@@ -61,10 +75,14 @@ type HttpServer(port : int, pages : Map<string, HttpListenerRequest -> string>, 
                                             
                                         | _ ->
                                             response.StatusCode <- 404
+                                            response.ContentLength64 <- defaultPageBytes.LongLength
+                                            response.OutputStream.Write(defaultPageBytes, 0, defaultPageBytes.Length)
                                 | _ ->
                                     response.StatusCode <- 404
+                                    response.ContentLength64 <- defaultPageBytes.LongLength
+                                    response.OutputStream.Write(defaultPageBytes, 0, defaultPageBytes.Length)
 
-
+                    response.OutputStream.Close()
                         
                 with 
                     | :? OperationCanceledException -> () //shutdown

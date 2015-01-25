@@ -16,6 +16,7 @@ type Directory(port : int, pingPort : int, remapAddress : string -> string, serv
     let random = System.Random()
 
     let mutable loginCallbacks = []
+    let mutable logoutCallbacks = []
 
     let Log = logger "dir"
 
@@ -64,7 +65,8 @@ type Directory(port : int, pingPort : int, remapAddress : string -> string, serv
                             
 
                         | Shutdown(address, port) ->
-
+                            for cb in logoutCallbacks do
+                                cb address port
                             content.TryRemove((address, port)) |> ignore
                 with e ->
                     Log.warn "received corrupt UDP-Packet: %A" e
@@ -72,23 +74,15 @@ type Directory(port : int, pingPort : int, remapAddress : string -> string, serv
 
     let getAllRelays() =
         let mutable result = []
-        let mutable remove = []
 
         for (KeyValue(k,v)) in content do
                     
             let (address, port) = k
             let (key, time, useCount) = v
-
             let age = DateTime.Now - time
 
-            if age.TotalSeconds > 4.0 then
-                remove <- k::remove
-            else
+            if age.TotalSeconds <= 10.0 then
                 result <- (address, port, key, useCount)::result
-
-                                
-        for r in remove do
-            content.TryRemove r |> ignore
 
         result
       
@@ -181,9 +175,35 @@ type Directory(port : int, pingPort : int, remapAddress : string -> string, serv
 
         }
     
+    let startPruning() =
+        async {
+        
+            while true do
+                do! Async.Sleep(5000)
+                let remove = ref []
+
+                for (KeyValue(k,v)) in content do
+                    
+                    let (address, port) = k
+                    let (key, time, useCount) = v
+
+                    let age = DateTime.Now - time
+
+                    if age.TotalSeconds > 10.0 then
+                        remove := (k)::!remove
+
+                for (r,port) in !remove do
+                    for cb in logoutCallbacks do cb r port
+                    content.TryRemove ((r,port)) |> ignore
+        
+        }
 
     member x.AddLoginCallback (cb) =
         loginCallbacks <- cb::loginCallbacks
+
+     member x.AddLogoutCallback (cb) =
+        logoutCallbacks <- cb::logoutCallbacks
+
 
     member x.info fmt =
         Log.info fmt
@@ -209,6 +229,7 @@ type Directory(port : int, pingPort : int, remapAddress : string -> string, serv
 
     member x.Start() =
         startPingListener() |> start
+        startPruning() |> start
         startListener() |> start
 
 

@@ -39,7 +39,7 @@
     <DocumentationFile>
     </DocumentationFile>
     <Prefer32Bit>false</Prefer32Bit>
-    <StartArguments>client 54.77.90.172 9999</StartArguments>
+    <StartArguments>client 54.154.192.188 9999</StartArguments>
     <Commandlineparameters>directory 9999</Commandlineparameters>
   </PropertyGroup>
   <PropertyGroup>

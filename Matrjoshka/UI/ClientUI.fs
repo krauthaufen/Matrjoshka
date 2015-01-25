@@ -6,8 +6,8 @@ open System.Threading
 open System.Threading.Tasks
 
 module ClientUI =
-    let run (port : int) (c : Client) (serviceAddress : string) =
-
+    let run (port : int) (c : Client) =
+        let serviceAddress = ref None
         let pages =
             Map.ofList [
                 "/chain", fun (r : HttpListenerRequest) ->
@@ -37,8 +37,21 @@ module ClientUI =
                 "/qod", fun (r : HttpListenerRequest) ->
                     try
                         let sw = System.Diagnostics.Stopwatch()
+
+                        let serviceURL =
+                            match !serviceAddress with
+                                | Some url -> url
+                                | None ->
+                                    let (sa, sp) = c.GetServiceAddress().Value
+                                    let serviceURL = sprintf "http://%s:%d/" sa sp
+                                    serviceAddress := Some serviceURL
+                                    serviceURL
+
                         sw.Start()
-                        let data = c.Request(Request(serviceAddress, 0, null)) |> Async.RunSynchronously
+
+
+
+                        let data = c.Request(Request(serviceURL, 0, null)) |> Async.RunSynchronously
                         sw.Stop()
 
                         match data with
@@ -51,7 +64,8 @@ module ClientUI =
                         sprintf "{ \"status\" : 0, \"error\": \"%s\" }" e.Message
             ]
 
-        let s = HttpServer(port, pages, @"E:\Development\Matrjoshka\Matrjoshka\WebServer\static")
+        let path = System.IO.Path.Combine("..", "..", "Matrjoshka", "WebServer", "static")
+        let s = HttpServer(port, pages, path)
 
         s.Start() //Run()
         //System.Environment.Exit(0)
