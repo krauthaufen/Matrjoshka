@@ -21,8 +21,12 @@ Note if you use the VM you don't need to do any of these.
 Clone this git repo.
 Install Mono.
 > sudo apt-get install mono
+
 Install fsharp.
 > sudo apt-get install fsharp
-Import mozroot Certificates.
+
+Import mozroot Certificates
+
 > mozroots --import --sync
+
 Run build.sh.
