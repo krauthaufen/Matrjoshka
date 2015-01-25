@@ -51,14 +51,19 @@ type HttpServer(port : int, pages : Map<string, HttpListenerRequest -> string>, 
 
                                     let basePath = AppDomain.CurrentDomain.BaseDirectory
                                     let path = System.IO.Path.GetFullPath(System.IO.Path.Combine(basePath, directory, path))
-                                    printfn "looking up: %A" path
-
+                                    Log.info "checking path: %A" path
                                     let probes =
                                         [path; System.IO.Path.ChangeExtension(path, ".html"); System.IO.Path.ChangeExtension(path, ".htm")]
+
+
+                                    let probes =
+                                        if c.Request.Url.LocalPath = "/" then System.IO.Path.Combine(path, "quote.html")::probes
+                                        else probes
 
                                     let path = probes |> List.tryFind System.IO.File.Exists
                                     match path with
                                         | Some path ->
+                                            Log.info "found: %A" path
                                             let mime = System.Web.MimeMapping.GetMimeMapping(path)
                                             let bytes = System.IO.File.ReadAllBytes(path)
                                             response.ContentType <- mime

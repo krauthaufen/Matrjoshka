@@ -180,11 +180,8 @@ let main args =
             let c = Client(directory, Int32.Parse directoryPort)
             let mutable running = true
 
-            let (sa, sp) = c.GetServiceAddress().Value
-            let serviceURL = sprintf "http://%s:%d/" sa sp
-            ClientUI.run 1337 c serviceURL
-
-            
+            let serviceAddress = ref None
+            ClientUI.run 1337 c
 
             while running do
                 printf "client# "
@@ -197,27 +194,29 @@ let main args =
                     | "!connect" ->
                         printfn "%A" <| c.Connect(3)
 
-                    | "!google" ->
-                        let data = c.Request(Request("http://www.orf.at", 0, null)) |> Async.RunSynchronously
-
-                        match data with
-                            | Data content ->
-                                printfn "got:\r\n\r\n%s" (System.Text.ASCIIEncoding.UTF8.GetString content)
-                            | Exception e->
-                                printfn "ERROR: %A" e
-                            | _ ->
-                                ()
-
                     | "!qod" ->
-                        let data = c.Request(Request(serviceURL, 0, null)) |> Async.RunSynchronously
+                        try
+                            // get the service URL (if not yet read from the directory)
+                            let serviceURL =
+                                match !serviceAddress with
+                                    | Some url -> url
+                                    | None ->
+                                        let (sa, sp) = c.GetServiceAddress().Value
+                                        let serviceURL = sprintf "http://%s:%d/" sa sp
+                                        serviceAddress := Some serviceURL
+                                        serviceURL
 
-                        match data with
-                            | Data content ->
-                                printfn "got:\r\n\r\n%s" (System.Text.ASCIIEncoding.UTF8.GetString content)
-                            | Exception err ->
-                                printfn "ERROR: %A" err
-                            | _ ->
-                                ()           
+                            let data = c.Request(Request(serviceURL, 0, null)) |> Async.RunSynchronously
+
+                            match data with
+                                | Data content ->
+                                    printfn "got:\r\n\r\n%s" (System.Text.ASCIIEncoding.UTF8.GetString content)
+                                | Exception err ->
+                                    printfn "ERROR: %A" err
+                                | _ ->
+                                    ()           
+                        with _ ->
+                            printfn "error getting quote"
                          
                     | _ -> () 
 

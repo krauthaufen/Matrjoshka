@@ -64,7 +64,7 @@ module EC2 =
         let client = new AmazonEC2Client(cred.accessKeyId, cred.secretAccessKey, RegionEndpoint.EUWest1)
 
 
-        let startInstancesAsync (count : int) (startupScript : string) =
+        let startInstancesAsync (count : int) (instanceName : string) (startupScript : string) =
             async {
 
                 Log.info "localhost: %A" myself
@@ -94,7 +94,7 @@ module EC2 =
 
                 // create tags (Name) for instances
                 Log.info "creating tags"
-                let tags = response.Reservation.Instances |> Seq.map(fun instance -> Tag("Name", "G1-T3-Chain")) |> Seq.toList
+                let tags = response.Reservation.Instances |> Seq.map(fun instance -> Tag("Name", instanceName)) |> Seq.toList
                 let ids = System.Collections.Generic.List(response.Reservation.Instances |> Seq.map (fun i -> i.InstanceId))
 
                 let createTags = CreateTagsRequest(ids, System.Collections.Generic.List(tags))
@@ -168,12 +168,12 @@ module EC2 =
 
         override x.StartChainAsync(count : int) =
             async {
-                return! startInstancesAsync count (chainStartupScript myself chainPort)
+                return! startInstancesAsync count "G1-T3-Chain" (chainStartupScript myself chainPort)
             }
 
         override x.StartServiceAsync() =
             async {
-                let! instance = startInstancesAsync 1 (serviceStartupScript servicePort)
+                let! instance = startInstancesAsync 1 "G1-T3-Service" (serviceStartupScript servicePort)
                 match instance with
                     | service::_ -> return service
                     | _ -> return failwith "could not start service"
