@@ -5,9 +5,9 @@ This Readme contains an installation manual as well as the manual for a quick te
 ## Quick test
 
 Log in onto Amazon EC2 service and start the instance "G1-T3-General".
-Connect to the instance and run start <port>. 
+Connect to the instance and run start \<port\>. 
 
-Afterwards execute start.sh in the home folder of the Virtual box. This should just start Matrjoshka.exe <ip> <port> with the corresponding ip and port of the directory.
+Afterwards execute start.sh in the home folder of the Virtual box. This should just start Matrjoshka.exe \<ip\> \<port\> with the corresponding ip and port of the directory.
 
 When the startup is finished you can open a browser (in the VM) and connect to localhost:1337.
 
