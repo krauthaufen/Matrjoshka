@@ -1,8 +1,8 @@
-h1. Matrjoshka Routing
+# Matrjoshka Routing
 
 This Readme contains an installation manual as well as the manual for a quick test.
 
-h2. Quick test
+## Quick test
 
 Log in onto Amazon EC2 service and start the instance "G1-T3-General".
 Connect to the instance and run start <port>. 
@@ -14,7 +14,7 @@ When the startup is finished you can open a browser (in the VM) and connect to l
 There is the Webinterface where you can click "Build new Chain" to get a new Chain, or "Get Quote" to get a quote. Note: for the latter one you need to have a Chain established.
 
 
-h2. Installation
+## Installation
 
 Note if you use the VM you don't need to do any of these.
 
