@@ -4,9 +4,10 @@ This Readme contains an installation manual as well as the manual for a quick te
 
 ## Quick test
 
-Log in onto Amazon EC2 service and start the instance "G1-T3-General".
+Log in onto Amazon EC2 service and start the instance "G1-T3-Directory". This is an instance of the "G1-T3-Mono" AMI with the Security Group "G1-T3-General".
+
 Connect to the instance and run 
-> start \<port\>
+> start directory \<port\>
 
 
 Afterwards execute 
